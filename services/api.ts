@@ -1,8 +1,9 @@
 import axios from 'axios';
+import {OdooResultProducts} from '@/types/odooResultProducts';
 
 // Configuration for Odoo API connection
-const ODOO_API_BASE_URL = 'https://your-odoo-instance.com/api';
-const API_KEY = 'your-api-key'; // Replace with actual API key or use environment variable
+const ODOO_API_BASE_URL = 'http://localhost:8069';
+const API_KEY = process.env.REACT_APP_ODOO_API_KEY; // Replace with actual API key or use environment variable
 
 // Create axios instance with default config
 const odooClient = axios.create({
@@ -33,10 +34,19 @@ odooClient.interceptors.response.use(
 export const fetchCategories = async () => {
   try {
     // TODO: Replace with actual Odoo API call
-    // const response = await odooClient.get('/food.category');
-    // return response.data;
-    
-    // Mock data for development
+     //const response:OdooResultProducts = await odooClient.get('/products');
+     //return response.result.data;
+      const response = await fetch(`${ODOO_API_BASE_URL}/api/products`, {
+          headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${API_KEY}`,
+          },
+      });
+      const data = await response.json();
+      console.log(data);
+      return data?.data;
+
+      // Mock data for development
     return [
       {
         id: '1',
