@@ -1,28 +1,43 @@
 import axios from 'axios';
 
-// Configuration for Odoo API connection
-const ODOO_API_BASE_URL = 'https://your-odoo-instance.com/api';
-const API_KEY = 'your-api-key'; // Replace with actual API key or use environment variable
+// ======== CONFIGURATION DE BASE ========
+const ODOO_JSONRPC_URL = process.env.EXPO_PUBLIC_ODOO_URL || 'http://localhost:8069/jsonrpc';
+const DB_NAME = process.env.EXPO_PUBLIC_ODOO_DB || 'odoo_db_thiop';
+const USER_ID = Number(process.env.EXPO_PUBLIC_ODOO_USER_ID) || 2;
+const API_KEY = process.env.EXPO_PUBLIC_ODOO_API_KEY;
 
-// Create axios instance with default config
+// ======== INSTANCE AXIOS ========
 const odooClient = axios.create({
-  baseURL: ODOO_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${API_KEY}`
-  },
-  timeout: 10000
+  baseURL: ODOO_JSONRPC_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
-// Error handling middleware
-odooClient.interceptors.response.use(
-  response => response,
-  error => {
-    // Log errors or handle specific error codes
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
+// ======== MÉTHODE GÉNÉRIQUE POUR APPELER ODOO ========
+export const callOdoo = async (
+  model: string,
+  method: string,
+  args: any[] = [],
+  kwargs: Record<string, any> = {}
+) => {
+  const payload = {
+    jsonrpc: '2.0',
+    method: 'call',
+    params: {
+      service: 'object',
+      method: 'execute_kw',
+      args: [DB_NAME, USER_ID, API_KEY, model, method, args, kwargs],
+    },
+    id: Date.now(),
+  };
+
+  const { data } = await odooClient.post('', payload);
+  if (data?.error) {
+    console.error('Odoo Error:', data.error);
+    throw new Error(data.error.data?.message || 'Erreur côté Odoo');
   }
-);
+  return data.result;
+};
 
 // ========== Category API ==========
 
@@ -32,11 +47,11 @@ odooClient.interceptors.response.use(
  */
 export const fetchCategories = async () => {
   try {
-    // TODO: Replace with actual Odoo API call
-    // const response = await odooClient.get('/food.category');
-    // return response.data;
-    
-    // Mock data for development
+    return await callOdoo('product.category', 'search_read', [[]], {
+      fields: ['id', 'name', 'parent_id'],
+    });
+  } catch (error) {
+    console.warn('Odoo not available, using mock data:', error);
     return [
       {
         id: '1',
@@ -69,9 +84,6 @@ export const fetchCategories = async () => {
         image: 'https://images.pexels.com/photos/376464/pexels-photo-376464.jpeg?auto=compress&cs=tinysrgb&w=300'
       }
     ];
-  } catch (error) {
-    console.error('Failed to fetch categories:', error);
-    throw error;
   }
 };
 
@@ -83,13 +95,23 @@ export const fetchCategories = async () => {
  */
 export const fetchFeaturedItems = async () => {
   try {
-    // TODO: Replace with actual Odoo API call
-    // const response = await odooClient.get('/food.item', {
-    //   params: { featured: true, limit: 10 }
-    // });
-    // return response.data;
-    
-    // Mock data for development
+    const products = await callOdoo('product.template', 'search_read', [[['available_in_pos', '=', true]]], {
+      fields: ['id', 'name', 'list_price', 'image_1920'],
+      limit: 10,
+    });
+
+    return products.map((product: any) => ({
+      id: String(product.id),
+      name: product.name,
+      restaurant: 'Restaurant',
+      image: product.image_1920
+        ? `data:image/png;base64,${product.image_1920}`
+        : 'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=300',
+      price: product.list_price || 0,
+      rating: 4.5
+    }));
+  } catch (error) {
+    console.warn('Odoo not available for featured items, using mock data:', error);
     return [
       {
         id: '101',
@@ -132,9 +154,6 @@ export const fetchFeaturedItems = async () => {
         rating: 4.4
       }
     ];
-  } catch (error) {
-    console.error('Failed to fetch featured items:', error);
-    throw error;
   }
 };
 
