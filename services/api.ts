@@ -1,31 +1,29 @@
 import axios from 'axios';
 
 // === CONFIGURATION DE L'API ODOO ===
-const ODOO_API_BASE_URL = 'http://localhost:8069'; // ton serveur Odoo
-const API_KEY = 'your-api-key'; // optionnel pour l'instant
+const ODOO_API_BASE_URL = 'http://172.20.10.3:8069'; // ton serveur Odoo
 
 // === CLIENT AXIOS CONFIGURÉ ===
 const odooClient = axios.create({
   baseURL: ODOO_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${API_KEY}`
   },
-  timeout: 10000
+  timeout: 10000,
 });
 
 // === Gestion des erreurs ===
 odooClient.interceptors.response.use(
   response => response,
   error => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error('❌ Erreur API Odoo:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
 
 //
 // ============================
-//  🚀  API ODOO : CATÉGORIES
+// 🚀  API ODOO : CATÉGORIES
 // ============================
 //
 export const fetchCategories = async () => {
@@ -37,30 +35,20 @@ export const fetchCategories = async () => {
     if (data.status === 200 && data.data) {
       return data.data.map(category => ({
         id: category.id.toString(),
-        name: category.name
+        name: category.name,
       }));
     }
 
-    return getMockCategories();
+    return [];
   } catch (error) {
     console.error('❌ Erreur fetchCategories:', error);
-    return getMockCategories();
+    return [];
   }
 };
 
-// === Mock fallback si Odoo n’est pas dispo ===
-const getMockCategories = () => [
-  { id: '1', name: 'Pizza' },
-  { id: '2', name: 'Burgers' },
-  { id: '3', name: 'Sushi' },
-  { id: '4', name: 'Pasta' },
-  { id: '5', name: 'Salads' },
-  { id: '6', name: 'Desserts' },
-];
-
 //
 // ============================
-//  🚀  API ODOO : PRODUITS
+// 🚀  API ODOO : PRODUITS
 // ============================
 //
 export const fetchFeaturedItems = async () => {
@@ -77,29 +65,51 @@ export const fetchFeaturedItems = async () => {
         image: product.image || null,
         price: product.price,
         rating: 4.5,
-        in_stock: product.in_stock
+        in_stock: product.in_stock,
       }));
     }
 
-    return getMockFeaturedItems();
+    return [];
   } catch (error) {
     console.error('❌ Erreur fetchFeaturedItems:', error);
-    return getMockFeaturedItems();
+    return [];
   }
 };
 
-// === Mock fallback pour les produits ===
-const getMockFeaturedItems = () => [
-  { id: '101', name: 'Margherita Pizza', restaurant: 'Pizza Palace', price: 12.99, rating: 4.7 },
-  { id: '102', name: 'Classic Burger', restaurant: 'Burger Joint', price: 10.49, rating: 4.5 },
-  { id: '103', name: 'California Roll', restaurant: 'Sushi Express', price: 14.99, rating: 4.8 },
-  { id: '104', name: 'Fettuccine Alfredo', restaurant: 'Pasta House', price: 13.99, rating: 4.6 },
-  { id: '105', name: 'Caesar Salad', restaurant: 'Fresh Greens', price: 9.99, rating: 4.4 }
-];
+//
+// ============================
+// 🚀  API ODOO : DÉTAIL PRODUIT
+// ============================
+//
+export const fetchItemDetails = async (id: string) => {
+  try {
+    const response = await odooClient.get(`/api/products/${id}`);
+    const data = response.data;
+    console.log(`✅ Détail du produit ${id} depuis Odoo:`, data);
+
+    if (data.status === 200 && data.data) {
+      const product = data.data;
+      return {
+        id: product.id.toString(),
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        image: product.image || null,
+        in_stock: product.in_stock,
+        uom: product.uom || '',
+      };
+    }
+
+    throw new Error('Produit introuvable');
+  } catch (error) {
+    console.error(`❌ Erreur fetchItemDetails(${id}):`, error);
+    throw error;
+  }
+};
 
 //
 // ============================
-//  🍽️  AUTRES FONCTIONS MOCK
+// 🍽️  RESTAURANTS (FAUX TEMPORAIRE)
 // ============================
 //
 export const fetchRestaurants = async () => [
@@ -107,43 +117,9 @@ export const fetchRestaurants = async () => [
   { id: '202', name: 'Burger Joint', cuisine: 'American', rating: 4.5, deliveryTime: '15-25 min', deliveryFee: 1.99, distance: 0.8 },
 ];
 
-export const fetchRestaurantDetails = async (id) => ({
-  id,
-  name: 'Pizza Palace',
-  description: 'A fantastic restaurant serving delicious food.',
-  categories: ['Pizza', 'Pasta'],
-  menu: [],
-});
-
-export const fetchItemDetails = async (id) => ({
-  id,
-  name: 'Margherita Pizza',
-  description: 'A delicious pizza made with the finest ingredients.',
-  price: 12.99,
-  rating: 4.7,
-});
-
-export const searchRestaurantsAndItems = async (query) => {
-  if (!query || query.length < 2) return [];
-  const products = await fetchFeaturedItems();
-  return products.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-};
-
-export const fetchCategoryDetails = async (categoryId) => {
-  const categories = await fetchCategories();
-  const category = categories.find(c => c.id === categoryId);
-  if (!category) throw new Error('Category not found');
-  const items = await fetchFeaturedItems();
-  return { ...category, items };
-};
-
-// === Export global ===
 export default {
   fetchCategories,
   fetchFeaturedItems,
-  fetchRestaurants,
-  fetchRestaurantDetails,
   fetchItemDetails,
-  searchRestaurantsAndItems,
-  fetchCategoryDetails
+  fetchRestaurants,
 };
