@@ -72,12 +72,12 @@ export default function CartScreen() {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await clearCart();
-              loadCart();
-            } catch (err) {
-              console.error('Error clearing cart:', err);
-            }
+  try {
+    await clearCart();
+    await loadCart(); // 🟢 recharge immédiatement le panier vide
+  } catch (err) {
+    console.error('Error clearing cart:', err);
+  }
           },
         },
       ]
