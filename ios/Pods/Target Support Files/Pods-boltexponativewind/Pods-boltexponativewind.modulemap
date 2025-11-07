@@ -1,0 +1,6 @@
+module Pods_boltexponativewind {
+  umbrella header "Pods-boltexponativewind-umbrella.h"
+
+  export *
+  module * { export * }
+}
