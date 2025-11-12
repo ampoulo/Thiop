@@ -111,19 +111,26 @@ export const clearCart = async () => {
 };
 
 // Ajoute une ligne (ou cumule la quantité si même produit + mêmes options)
-export const addToCart = async (item: any, quantity = 1) => {
+export const addToCart = async (item: any) => {
   if (!currentCart || !Array.isArray(currentCart.items)) {
     currentCart = createEmptyCart();
   }
 
+  // 🧩 Normalise les attributs pour créer une clé stable
   const normalizedAttrs = canonicalizeAttributes(item.selectedAttributes || []);
   const key = makeUniqueKey({ ...item, selectedAttributes: normalizedAttrs });
 
+  // 🔢 Récupère la quantité choisie depuis le produit
+  const quantity = Number(item.quantity || 1);
+
+  // 🔍 Vérifie si le même produit avec les mêmes options existe déjà
   const existing = currentCart.items.find((i: any) => i.uniqueKey === key);
 
   if (existing) {
-    existing.quantity = Number(existing.quantity || 0) + Number(quantity || 0);
+    // 🔁 Si le produit existe déjà, on cumule les quantités
+    existing.quantity = Number(existing.quantity || 0) + quantity;
   } else {
+    // 🆕 Sinon, on ajoute un nouveau produit
     currentCart.items.push({
       uniqueKey: key,
       id: toStr(item.id),
@@ -132,17 +139,19 @@ export const addToCart = async (item: any, quantity = 1) => {
       total_price: computeTotalPriceIfMissing({
         ...item,
         selectedAttributes: normalizedAttrs,
-      }),
+      }), // ✅ prix unitaire
       image: item.image || null,
-      quantity: Number(quantity || 1),
+      quantity, // ✅ quantité réelle
       selectedAttributes: normalizedAttrs,
     });
   }
 
+  // 💰 Recalcul des totaux
   recalc();
   await saveCart();
   return currentCart;
 };
+
 
 // Met à jour la quantité (supprime si <= 0)
 export const updateCartItem = async (uniqueKey: string, quantity: number) => {
