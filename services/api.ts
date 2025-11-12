@@ -35,6 +35,7 @@ export const fetchCategories = async () => {
       return data.data.map(category => ({
         id: category.id.toString(),
         name: category.name,
+        image: category.image || null,
       }));
     }
 
@@ -94,6 +95,9 @@ export const fetchItemDetails = async (id: string) => {
         image: product.image || null,
         in_stock: product.in_stock,
         uom: product.uom || '',
+        // 🔹 On ajoute ces deux lignes :
+        attributes: product.attributes || [],
+        extras: product.extras || [],
       };
     }
 
@@ -103,6 +107,7 @@ export const fetchItemDetails = async (id: string) => {
     throw error;
   }
 };
+
 
 //
 // ============================
@@ -136,11 +141,33 @@ export const fetchProductsByCategory = async (categoryId: string) => {
     return [];
   }
 };
+export const fetchCategoryById = async (categoryId: string) => {
+  try {
+    const response = await odooClient.get(`/api/categories/${categoryId}`);
+    const data = response.data;
+
+    if (data.status === 200 && data.data) {
+      return data.data; // ✅ on renvoie directement la catégorie
+    } else {
+      console.warn("⚠️ fetchCategoryById: mauvaise réponse API", data);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Erreur fetchCategoryById:', error);
+    return null;
+  }
+};
+
+
+
+
+
 
 export default {
   fetchCategories,
   fetchFeaturedItems,
   fetchItemDetails,
   fetchRestaurants,
-  fetchProductsByCategory
+  fetchProductsByCategory,
+  fetchCategoryById
 };
