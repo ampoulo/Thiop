@@ -3,134 +3,80 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableWithoutFeedback,
   Image,
   ActivityIndicator,
-  SafeAreaView,
   Animated,
+  ScrollView,
+  Dimensions,
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { fetchCategories } from "@/services/api";
-
-/** 🔹 Carte animée pour une catégorie */
-function AnimatedCategoryCard({ item, index, onPress }: any) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateAnim = useRef(new Animated.Value(15)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-
-  // Animation d’apparition
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        delay: index * 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateAnim, {
-        toValue: 0,
-        duration: 400,
-        delay: index * 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  // Effet rebond
-  const onPressIn = () =>
-    Animated.spring(scale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 6,
-    }).start();
-
-  const onPressOut = () =>
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 6,
-    }).start();
-
-  return (
-    <TouchableWithoutFeedback
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      onPress={onPress}
-    >
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: translateAnim }, { scale }],
-          },
-        ]}
-      >
-        <Image
-          source={{
-            uri:
-              item.image ||
-              "https://via.placeholder.com/150x150.png?text=No+Image",
-          }}
-          style={styles.image}
-        />
-        <Text style={styles.name}>{item.name}</Text>
-      </Animated.View>
-    </TouchableWithoutFeedback>
-  );
-}
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function KioskHome() {
+  const insets = useSafeAreaInsets();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const router = useRouter();
 
-  // Animations globales
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateAnim = useRef(new Animated.Value(20)).current;
+  // Page animation
+  const fadeScreen = useRef(new Animated.Value(0)).current;
+  const translateScreen = useRef(new Animated.Value(20)).current;
 
+  const screenWidth = Dimensions.get("window").width;
+
+  /* ---------------------------------------------
+     🟧 FULLSCREEN McDo GRID LOGIC (same as Category)
+  ----------------------------------------------*/
+  const getColumns = () => {
+    if (screenWidth < 400) return 1;    // very small phones
+    if (screenWidth < 700) return 2;    // phones
+    if (screenWidth < 1100) return 3;   // tablets
+    if (screenWidth < 1500) return 4;   // small desktop
+    if (screenWidth < 2000) return 5;   // medium desktop
+    return 6;                           // large screens
+  };
+
+  const columns = getColumns();
+  const gap = 28; // McDo premium spacing
+
+  const itemWidth =
+    (screenWidth - (gap * (columns - 1)) - 40) / columns;
+  // -40 = paddingHorizontal of ScrollView
+
+
+  /* ---------------------------------------------
+     Fetch catégories
+  ----------------------------------------------*/
   useEffect(() => {
     const load = async () => {
       try {
         const data = await fetchCategories();
         setCategories(data);
-      } catch (e) {
-        console.error(e);
       } finally {
         setLoading(false);
+
+        // animations
         Animated.parallel([
-          Animated.timing(fadeAnim, {
+          Animated.timing(fadeScreen, {
             toValue: 1,
-            duration: 600,
+            duration: 460,
             useNativeDriver: true,
           }),
-          Animated.timing(translateAnim, {
+          Animated.timing(translateScreen, {
             toValue: 0,
-            duration: 600,
+            duration: 460,
             useNativeDriver: true,
           }),
         ]).start();
       }
     };
+
     load();
   }, []);
-
-  // 🧡 Rebond du bouton "Voir le panier"
-  const scaleCart = useRef(new Animated.Value(1)).current;
-  const onPressInCart = () =>
-    Animated.spring(scaleCart, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
-  const onPressOutCart = () =>
-    Animated.spring(scaleCart, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
 
   if (loading) {
     return (
@@ -140,136 +86,203 @@ export default function KioskHome() {
     );
   }
 
-  if (!loading && categories.length === 0) {
+  /* ---------------------------------------------
+     🟥 Pas de catégories
+  ----------------------------------------------*/
+  if (categories.length === 0) {
     return (
       <View style={styles.centered}>
-        <Text style={{ fontSize: 18, color: "#888" }}>
+        <Text style={{ fontSize: 20, color: "#999" }}>
           Aucune catégorie disponible
         </Text>
       </View>
     );
   }
 
+  /* ---------------------------------------------
+     🟩 UI FINAL
+  ----------------------------------------------*/
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      <Animated.View
-        style={[
-          styles.container,
-          { opacity: fadeAnim, transform: [{ translateY: translateAnim }] },
-        ]}
-      >
-        <Animated.Text style={styles.title}>🍔 Bienvenue!</Animated.Text>
-        <Animated.Text style={styles.subtitle}>
-          Cliquez sur une catégorie pour commencer votre commande
-        </Animated.Text>
+    <Animated.View
+      style={[
+        styles.screen,
+        {
+          opacity: fadeScreen,
+          transform: [{ translateY: translateScreen }],
+        },
+      ]}
+    >
+      {/* HEADER */}
+      <Text style={styles.title}>🍔 Bienvenue !</Text>
+      <Text style={styles.subtitle}>
+        Sélectionnez une catégorie pour commencer votre commande
+      </Text>
 
-        <FlatList
-          data={categories}
-          numColumns={2}
-          keyExtractor={(item) => item.id.toString()}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={{ paddingBottom: 100 }}
-          renderItem={({ item, index }) => (
-            <AnimatedCategoryCard
-              item={item}
-              index={index}
-              onPress={() => router.push(`/kiosk/category/${item.id}`)}
-            />
-          )}
-        />
-      </Animated.View>
-
-      {/* 🟧 Bouton Voir le panier */}
-      <TouchableWithoutFeedback
-        onPressIn={onPressInCart}
-        onPressOut={onPressOutCart}
-        onPress={() => router.push("/kiosk/cart")}
+      {/* FULLSCREEN GRID */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingBottom: insets.bottom + 260,
+        }}
       >
-        <Animated.View style={[styles.cartButton, { transform: [{ scale: scaleCart }] }]}>
-          <Text style={styles.cartText}>🛒 Voir le panier</Text>
-        </Animated.View>
-      </TouchableWithoutFeedback>
-    </SafeAreaView>
+        <View style={[styles.grid, { gap }]}>
+          {categories.map((item, idx) => {
+            const fade = new Animated.Value(0);
+            const translate = new Animated.Value(20);
+
+            Animated.parallel([
+              Animated.timing(fade, {
+                toValue: 1,
+                duration: 500,
+                delay: idx * 70,
+                useNativeDriver: true,
+              }),
+              Animated.timing(translate, {
+                toValue: 0,
+                duration: 500,
+                delay: idx * 70,
+                useNativeDriver: true,
+              }),
+            ]).start();
+
+            return (
+              <TouchableWithoutFeedback
+                key={item.id}
+                onPress={() =>
+                  router.push(`/kiosk/category/${item.id}`)
+                }
+              >
+                <Animated.View
+                  style={[
+                    styles.card,
+                    {
+                      width: itemWidth,
+                      opacity: fade,
+                      transform: [{ translateY: translate }],
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{
+                      uri: item.image || "https://via.placeholder.com/200",
+                    }}
+                    style={styles.image}
+                  />
+
+                  <Text style={styles.name} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                </Animated.View>
+              </TouchableWithoutFeedback>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      {/* PANIER FIXE */}
+      <TouchableWithoutFeedback onPress={() => router.push("/kiosk/cart")}>
+  <View
+    style={[
+      styles.cartButton,
+      { bottom: insets.bottom + 20 },
+    ]}
+  >
+    <Text style={styles.cartText}>🛒 Voir le panier</Text>
+  </View>
+</TouchableWithoutFeedback>
+
+    </Animated.View>
   );
 }
 
+/* ---------------------------------------------
+   🎨 Styles McDo Premium
+----------------------------------------------*/
 const styles = StyleSheet.create({
-  safeContainer: {
+  screen: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
+    paddingTop: 40,
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 20,
-    paddingBottom: 0,
-  },
+
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 38,
+    fontWeight: "900",
     textAlign: "center",
-    marginTop: 40,
+    marginBottom: 4,
+    color: "#222",
   },
+
   subtitle: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#555",
-    marginBottom: 30,
-  },
-  row: {
-    justifyContent: "space-between",
-    paddingHorizontal: 10,
-  },
-  card: {
-    flex: 1,
-    marginHorizontal: 8,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 16,
-    alignItems: "center",
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  image: {
-    width: 100,
-    height: 100,
-    resizeMode: "contain",
-    marginBottom: 10,
-  },
-  name: {
     fontSize: 18,
-    fontWeight: "600",
+    textAlign: "center",
+    color: "#777",
+    marginBottom: 32,
+    paddingHorizontal: 20,
   },
+
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 42,
+    paddingVertical: 26,
+    paddingHorizontal: 10,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.13,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+
+    alignItems: "center",
+  },
+
+  image: {
+    width: "60%", // cohérent avec ProductCard (Option B)
+    aspectRatio: 1,
+    resizeMode: "contain",
+    marginBottom: 18,
+  },
+
+  name: {
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    width: "90%",
+    color: "#222",
+  },
+
   cartButton: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 30 : 20,
     alignSelf: "center",
     backgroundColor: "#FF6B35",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 20,
+    paddingVertical: 22,
+    paddingHorizontal: 40,
+    borderRadius: 40,
     width: "80%",
-    maxWidth: 400,
+    maxWidth: 460,
+
     shadowColor: "#FF6B35",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
   },
+
   cartText: {
-    color: "#fff",
+    color: "#FFF",
+    fontWeight: "900",
     textAlign: "center",
-    fontWeight: "700",
-    fontSize: 18,
-    letterSpacing: 0.3,
+    fontSize: 20,
   },
 });

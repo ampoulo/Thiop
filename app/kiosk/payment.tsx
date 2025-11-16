@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { clearCart } from "@/services/cartService";
 
 export default function KioskPayment() {
   const router = useRouter();
@@ -10,14 +11,18 @@ export default function KioskPayment() {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={() => router.push("/kiosk/success")}
+        onPress={() => {
+            clearCart();
+            router.push("/kiosk/success")}}
       >
         <Text style={styles.text}>💳 Pay by Card</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.button}
-        onPress={() => router.push("/kiosk/success")}
+        onPress={() => {
+            clearCart();
+            router.push("/kiosk/success")}}
       >
         <Text style={styles.text}>💵 Pay by Cash</Text>
       </TouchableOpacity>

@@ -1,46 +1,46 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import {
   Animated,
   Pressable,
-  Platform,
-  StyleSheet,
-  Image,
   Text,
+  Image,
+  StyleSheet,
+  Platform,
+  Easing,
 } from "react-native";
 
-interface ProductCardProps {
-  item: {
-    id: string | number;
-    name: string;
-    price: number;
-    image?: string | null;
-  };
-  onPress: () => void;
-}
-
-export default function ProductCard({ item, onPress }: ProductCardProps) {
-  const scale = useRef(new Animated.Value(1)).current;
+export default function ProductCard({ item, onPress }) {
+  const scale = useRef(new Animated.Value(0.95)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const hover = useRef(new Animated.Value(1)).current;
 
-  // ✅ Apparition fluide à l’arrivée
-  React.useEffect(() => {
-    Animated.timing(opacity, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 260,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 7,
+        tension: 60,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  const animateIn = () => {
-    Animated.spring(scale, {
-      toValue: 1.05,
+  const hoverIn = () => {
+    Animated.spring(hover, {
+      toValue: 1.04,
       friction: 5,
       useNativeDriver: true,
     }).start();
   };
 
-  const animateOut = () => {
-    Animated.spring(scale, {
+  const hoverOut = () => {
+    Animated.spring(hover, {
       toValue: 1,
       friction: 5,
       useNativeDriver: true,
@@ -50,25 +50,22 @@ export default function ProductCard({ item, onPress }: ProductCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      onHoverIn={Platform.OS === "web" ? animateIn : undefined}
-      onHoverOut={Platform.OS === "web" ? animateOut : undefined}
-      onPressIn={Platform.OS !== "web" ? animateIn : undefined}
-      onPressOut={Platform.OS !== "web" ? animateOut : undefined}
-      style={{ flex: 1 }}
+      onHoverIn={Platform.OS === "web" ? hoverIn : undefined}
+      onHoverOut={Platform.OS === "web" ? hoverOut : undefined}
+      onPressIn={Platform.OS !== "web" ? hoverIn : undefined}
+      onPressOut={Platform.OS !== "web" ? hoverOut : undefined}
     >
       <Animated.View
         style={[
           styles.card,
           {
-            transform: [{ scale }],
             opacity,
+            transform: [{ scale }, { scale: hover }],
           },
         ]}
       >
-        <Image
-          source={{ uri: item.image || "https://via.placeholder.com/150" }}
-          style={styles.image}
-        />
+        <Image source={{ uri: item.image }} style={styles.img} />
+
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.price}>{item.price.toFixed(2)} €</Text>
       </Animated.View>
@@ -78,34 +75,40 @@ export default function ProductCard({ item, onPress }: ProductCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#F8F8F8",
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    marginHorizontal: 8, // ✅ espace horizontal
-    marginVertical: 10, // ✅ espace vertical
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 42,
+    padding: 26,
+    marginBottom: 26,
+
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.13,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 5,
+
+    alignItems: "center",
   },
-  image: {
-    width: 100,
-    height: 100,
+
+  img: {
+    width: "60%",       // OPTION B — requested size
+    aspectRatio: 1,
     resizeMode: "contain",
-    marginBottom: 10,
+    marginBottom: 18,
   },
+
   name: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "800",
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 8,
+    color: "#222",
   },
+
   price: {
-    fontSize: 15,
+    fontSize: 26,
+    fontWeight: "900",
     color: "#FF6B35",
-    fontWeight: "700",
+    textAlign: "center",
   },
 });

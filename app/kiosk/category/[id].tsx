@@ -1,67 +1,68 @@
-import { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
-  TouchableWithoutFeedback,
-  Animated,
-  ActivityIndicator,
+  TouchableOpacity,
   SafeAreaView,
-  Platform,
+  ScrollView,
   Dimensions,
+  Animated,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchProductsByCategory, fetchCategoryById } from "@/services/api";
 import ProductCard from "@/components/ProductCard";
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [products, setProducts] = useState([]);
-  const [category, setCategory] = useState<any>(null);
+  const [category, setCategory] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const fade = useRef(new Animated.Value(0)).current;
+
   const screenWidth = Dimensions.get("window").width;
-  const numColumns = screenWidth < 800 ? 2 : 3;
 
-  /** 🌀 Animation bouton “Précédent” */
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const animatePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.94,
-      useNativeDriver: true,
-      speed: 20,
-      bounciness: 8,
-    }).start();
+  /** McDo-style responsive columns */
+  const getColumns = () => {
+    if (screenWidth < 400) return 1;  // ultra small phones
+    if (screenWidth < 700) return 2;  // standard phones
+    if (screenWidth < 1100) return 3;
+    if (screenWidth < 1500) return 4;
+    if (screenWidth < 2000) return 5;
+    return 6;
   };
 
-  const animatePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 20,
-      bounciness: 8,
-    }).start();
-  };
+  const columns = getColumns();
+  const gap = 28;
+
+  const itemWidth = (screenWidth - (gap * (columns - 1)) - 40) / columns;
+  // -40 = horizontal padding around grid
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [categoryData, productData] = await Promise.all([
-          fetchCategoryById(id),
-          fetchProductsByCategory(id),
-        ]);
-        setCategory(categoryData || null);
-        setProducts(productData || []);
-      } catch (e) {
-        console.error("Erreur chargement catégorie :", e);
+        const c = await fetchCategoryById(id);
+        const p = await fetchProductsByCategory(id);
+
+        setCategory(c);
+        setProducts(p);
       } finally {
         setLoading(false);
+        Animated.timing(fade, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }).start();
       }
     };
+
     load();
   }, [id]);
 
@@ -74,127 +75,112 @@ export default function CategoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeContainer}>
-      {/* 🔙 Header */}
-      <View style={styles.header}>
-        <TouchableWithoutFeedback
-          onPressIn={animatePressIn}
-          onPressOut={animatePressOut}
-          onPress={() => router.push("/kiosk")}
+    <SafeAreaView style={styles.safe}>
+      <Animated.View style={{ flex: 1, opacity: fade }}>
+
+        {/* HEADER */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.push("/kiosk")}
+          >
+            <Text style={styles.backTxt}>⟵</Text>
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, alignItems: "center", marginRight: 60 }}>
+            <Text style={styles.title}>{category?.name}</Text>
+          </View>
+        </View>
+
+        {/* GRID */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: insets.bottom + 260,
+          }}
         >
-          <Animated.View style={[styles.backButton, { transform: [{ scale: scaleAnim }] }]}>
-            <Text style={styles.backText}>Précédent</Text>
-          </Animated.View>
-        </TouchableWithoutFeedback>
+          <View style={[styles.grid, { gap }]}>
+            {products.map((item) => (
+              <View key={item.id} style={{ width: itemWidth }}>
+                <ProductCard
+                  item={item}
+                  onPress={() => router.push(`/kiosk/item/${item.id}`)}
+                />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
 
-        <Text style={styles.title}>{category?.name || "Catégorie"}</Text>
-      </View>
+        {/* CART BUTTON FIXE */}
+        <TouchableOpacity
+          onPress={() => router.push("/kiosk/cart")}
+          style={[
+            styles.cartBtn,
+            { bottom: insets.bottom + 20 }
+          ]}
+        >
+          <Text style={styles.cartTxt}>🛒 Voir le panier</Text>
+        </TouchableOpacity>
 
-      {/* 🛍️ Liste des produits */}
-      <FlatList
-        data={products}
-        numColumns={numColumns}
-        keyExtractor={(item) => item.id.toString()}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        renderItem={({ item }) => (
-          <ProductCard
-            item={item}
-            onPress={() => router.push(`/kiosk/item/${item.id}`)}
-          />
-        )}
-      />
-
-      {/* 🟧 Bouton Voir le panier */}
-      <TouchableWithoutFeedback onPress={() => router.push("/kiosk/cart")}>
-        <Animated.View style={styles.cartButton}>
-          <Text style={styles.cartText}>🛒 Voir le panier</Text>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
+  safe: { flex: 1, backgroundColor: "#F8F8F8" },
+
+  centered: {
+    flex: 1, justifyContent: "center", alignItems: "center",
   },
 
-  /** 🔝 Header */
-  header: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
     marginBottom: 10,
-    position: "relative",
   },
 
-  backButton: {
-    position: "absolute",
-    left: 20,
-    flexDirection: "row",
-    alignItems: "center",
+  backBtn: {
     backgroundColor: "#FF6B35",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 25,
-    shadowColor: "#FF6B35",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 50,
   },
 
-  backText: {
-    fontSize: 15,
-    fontWeight: "600",
+  backTxt: {
     color: "#fff",
+    fontSize: 22,
+    fontWeight: "900",
   },
 
   title: {
-    fontSize: 26,
-    fontWeight: "700",
-    textAlign: "center",
-    color: "#333",
+    fontSize: 34,
+    fontWeight: "900",
   },
 
-  /** 🧩 Grille */
-  row: {
-    justifyContent: "space-around",
-    paddingHorizontal: 10,
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
 
-  /** 🔄 Loader */
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  /** 🛒 Bouton Voir le panier */
-  cartButton: {
+  cartBtn: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 30 : 20,
     alignSelf: "center",
     backgroundColor: "#FF6B35",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 25,
+    paddingVertical: 22,
+    paddingHorizontal: 40,
+    borderRadius: 40,
     width: "80%",
-    maxWidth: 400,
-    shadowColor: "#FF6B35",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    maxWidth: 460,
   },
-  cartText: {
+
+  cartTxt: {
     color: "#fff",
     textAlign: "center",
-    fontWeight: "700",
-    fontSize: 18,
-    letterSpacing: 0.3,
+    fontSize: 20,
+    fontWeight: "800",
   },
 });

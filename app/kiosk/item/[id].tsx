@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,123 +7,144 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Platform,
   SafeAreaView,
+  Animated,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import {
+  addToCart,
+  replaceCartItem,
+  getItemByKey,
+} from "@/services/cartService";
 import { fetchItemDetails } from "@/services/api";
-import { addToCart, replaceCartItem, getItemByKey } from "@/services/cartService";
 
 export default function KioskItem() {
   const { id, edit, uniqueKey } = useLocalSearchParams();
-  const [item, setItem] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, number[]>>({});
-  const [quantity, setQuantity] = useState(1);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  // 🧠 Charger le produit et préremplir si édition
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const [quantity, setQuantity] = useState(1);
+
+  /** ------- Anim bouton -------- */
+  const addAnim = useRef(new Animated.Value(1)).current;
+
+  const animateAdd = () => {
+    Animated.sequence([
+      Animated.timing(addAnim, { toValue: 0.92, duration: 120, useNativeDriver: true }),
+      Animated.timing(addAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  };
+
+  /** ------- Load produit -------- */
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchItemDetails(id as string);
+        const data = await fetchItemDetails(id);
         setItem(data);
 
-        // 🧩 Si on édite un produit du panier, charger ses valeurs
         if (edit === "true" && uniqueKey) {
-          const existing = await getItemByKey(uniqueKey as string);
+          const existing = await getItemByKey(uniqueKey);
           if (existing) {
-            // 🔁 Construire le mapping des attributs sélectionnés
-            const preselected: Record<string, number[]> = {};
-
-            data.attributes?.forEach((attr: any) => {
+            const initial = {};
+            data.attributes?.forEach((attr) => {
               const matchAttr = existing.selectedAttributes.find(
-                (a: any) => a.name === attr.name
+                (a) => a.name === attr.name
               );
               if (matchAttr) {
                 const ids = attr.values
-                  .filter((v: any) =>
-                    matchAttr.values.some((val: any) => val.name === v.name)
+                  .filter((v) =>
+                    matchAttr.values.some((x) => x.name === v.name)
                   )
-                  .map((v: any) => v.id);
-                if (ids.length > 0) preselected[attr.id] = ids;
+                  .map((v) => v.id);
+                if (ids.length > 0) initial[attr.id] = ids;
               }
             });
-
-            setSelectedAttributes(preselected);
-            setQuantity(existing.quantity || 1);
+            setSelectedAttributes(initial);
+            setQuantity(existing.quantity);
           }
         }
-      } catch (e) {
-        console.error("Erreur chargement produit :", e);
       } finally {
         setLoading(false);
       }
     };
+
     load();
-  }, [id, edit, uniqueKey]);
+  }, []);
 
   if (loading)
-    return <ActivityIndicator style={{ flex: 1 }} size="large" color="#FF6B35" />;
+    return (
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
+    );
 
-  /** 🎛 Sélection d’un attribut **/
-  const handleSelect = (attrId: number, valueId: number, type: string) => {
+  /** Sélection d’une option */
+  const selectValue = (attrId, valId, type) => {
     setSelectedAttributes((prev) => {
       const current = prev[attrId] || [];
-      if (type === "radio") return { ...prev, [attrId]: [valueId] };
-      if (current.includes(valueId))
-        return { ...prev, [attrId]: current.filter((v) => v !== valueId) };
-      else return { ...prev, [attrId]: [...current, valueId] };
+      if (type === "radio") return { ...prev, [attrId]: [valId] };
+
+      if (current.includes(valId))
+        return { ...prev, [attrId]: current.filter((v) => v !== valId) };
+
+      return { ...prev, [attrId]: [...current, valId] };
     });
   };
 
-  /** 💰 Calcul du prix total **/
-  const getTotalPrice = () => {
-    let total = item.price;
-    item.attributes?.forEach((attr: any) => {
-      const selected = selectedAttributes[attr.id];
-      if (selected) {
-        selected.forEach((valId: number) => {
-          const val = attr.values.find((v: any) => v.id === valId);
-          if (val) total += val.price_extra;
-        });
-      }
+  /** Prix total */
+  const getBasePrice = () => {
+    let p = item.price;
+    item.attributes?.forEach((attr) => {
+      selectedAttributes[attr.id]?.forEach((id) => {
+        const obj = attr.values.find((v) => v.id === id);
+        p += obj?.price_extra ?? 0;
+      });
     });
-    return total;
+    return p;
   };
 
-  /** 🧾 Ajout ou remplacement dans le panier **/
-  const handleAddToCart = async () => {
+  const totalDisplay = (getBasePrice() * quantity).toFixed(2);
+
+  /** Ajouter / Modifier panier */
+  const saveCart = async () => {
     const selectedOptions = item.attributes
       .map((attr) => {
-        const selected = selectedAttributes[attr.id];
-        if (!selected || selected.length === 0) return null;
-        const values = selected
-          .map((valId) => {
-            const val = attr.values.find((v) => v.id === valId);
-            return val ? { name: val.name, price_extra: val.price_extra } : null;
+        const sel = selectedAttributes[attr.id];
+        if (!sel) return null;
+
+        const values = sel
+          .map((id) => {
+            const v = attr.values.find((x) => x.id === id);
+            return v
+              ? { id: v.id, name: v.name, price_extra: v.price_extra }
+              : null;
           })
           .filter(Boolean);
-        return { name: attr.name, values };
+
+        return { id: attr.id, name: attr.name, values };
       })
       .filter(Boolean);
 
-    const totalPrice = getTotalPrice();
-
-    const productData = {
+    const data = {
       id: item.id,
       name: item.name,
       price: item.price,
-      total_price: totalPrice,
-      image: item.image,
+      total_price: getBasePrice(),
       quantity,
+      image: item.image,
       selectedAttributes: selectedOptions,
     };
 
     if (edit === "true" && uniqueKey) {
-      await replaceCartItem(uniqueKey as string, productData);
+      await replaceCartItem(uniqueKey, data);
     } else {
-      await addToCart(productData);
+      await addToCart(data);
     }
 
     router.push("/kiosk/cart");
@@ -131,59 +152,49 @@ export default function KioskItem() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* 🔙 Bouton précédent */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.backText}>Précédent</Text>
-        </TouchableOpacity>
-
-        {/* 🖼️ Image + infos principales */}
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 200 }}>
+        {/* HEADER */}
         <View style={styles.header}>
-          {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.image} />
-          ) : (
-            <View style={[styles.image, styles.placeholderImage]}>
-              <Text style={styles.placeholderText}>🍕</Text>
-            </View>
-          )}
-          <View style={styles.info}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.basePrice}>{item.price.toFixed(2)} €</Text>
-            <Text style={styles.desc}>{item.description}</Text>
-          </View>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backTxt}>⟵</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.title}>{item.name}</Text>
         </View>
 
-        {/* 🎛️ Choix d’attributs */}
-        {item.attributes?.map((attr: any) => (
+        {/* IMAGE CENTRALE */}
+        <View style={{ alignItems: "center", marginTop: 10 }}>
+          <Image
+            source={{ uri: item.image }}
+            style={styles.mainImage}
+          />
+        </View>
+
+        {/* DESCRIPTION */}
+        <Text style={styles.price}>{item.price.toFixed(2)} €</Text>
+        <Text style={styles.desc}>{item.description}</Text>
+
+        {/* ATTRIBUTES */}
+        {item.attributes?.map((attr) => (
           <View key={attr.id} style={styles.section}>
             <Text style={styles.sectionTitle}>{attr.name}</Text>
 
-            {attr.values.map((v: any) => {
+            {attr.values.map((v) => {
               const selected = selectedAttributes[attr.id]?.includes(v.id);
               const isRadio = attr.type === "radio";
+
               return (
                 <TouchableOpacity
                   key={v.id}
-                  style={[
-                    styles.optionRow,
-                    selected && styles.optionRowSelected,
-                  ]}
-                  onPress={() => handleSelect(attr.id, v.id, attr.type)}
+                  style={[styles.option, selected && styles.optionActive]}
+                  onPress={() => selectValue(attr.id, v.id, attr.type)}
                 >
                   <Text style={styles.optionLabel}>
-                    {isRadio
-                      ? selected
-                        ? "🔘"
-                        : "⚪"
-                      : selected
-                      ? "☑️"
-                      : "⬜"}{" "}
+                    {isRadio ? (selected ? "🔘" : "⚪") : selected ? "☑️" : "⬜"}
+                    {"  "}
                     {v.name}
                   </Text>
+
                   <Text style={styles.optionPrice}>
                     +{v.price_extra.toFixed(2)} €
                   </Text>
@@ -193,15 +204,17 @@ export default function KioskItem() {
           </View>
         ))}
 
-        {/* 🔢 Quantité */}
-        <View style={styles.quantityRow}>
+        {/* QUANTITY */}
+        <View style={styles.qtyRow}>
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => setQuantity((q) => Math.max(1, q - 1))}
           >
             <Text style={styles.qtyText}>−</Text>
           </TouchableOpacity>
+
           <Text style={styles.qtyNumber}>{quantity}</Text>
+
           <TouchableOpacity
             style={styles.qtyBtn}
             onPress={() => setQuantity((q) => q + 1)}
@@ -210,109 +223,143 @@ export default function KioskItem() {
           </TouchableOpacity>
         </View>
 
-        {/* 🛒 Bouton d’ajout */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
-          <Text style={styles.addButtonText}>
-            🛒 {edit === "true" ? "Mettre à jour" : "Ajouter au panier"} •{" "}
-            {(getTotalPrice() * quantity).toFixed(2)} €
-          </Text>
+        {/* BTN AJOUTER */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => {
+            animateAdd();
+            saveCart();
+          }}
+        >
+          <Animated.View
+            style={[
+              styles.addBtn,
+              { transform: [{ scale: addAnim }] },
+            ]}
+          >
+            <Text style={styles.addTxt}>
+              🛒 Ajouter • {totalDisplay} €
+            </Text>
+          </Animated.View>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-/** 💅 Styles */
+/* ---------------- STYLES MCDO PREMIUM ---------------- */
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#fff" },
-  container: { padding: 20, paddingBottom: 120 },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FF6B35",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 25,
-    alignSelf: "flex-start",
-    marginBottom: 20,
-    shadowColor: "#FF6B35",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  backText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  safe: { flex: 1, backgroundColor: "#FFFFFF" },
+
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    marginTop: Platform.OS === "ios" ? 20 : 0,
-  },
-  image: {
-    width: 140,
-    height: 140,
-    borderRadius: 16,
-    marginRight: 15,
-  },
-  placeholderImage: {
-    backgroundColor: "#f2f2f2",
-    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
+    marginTop: 10,
   },
-  placeholderText: { fontSize: 30, opacity: 0.6 },
-  info: { flex: 1 },
-  name: { fontSize: 26, fontWeight: "700" },
-  basePrice: { fontSize: 20, color: "#FF6B35", fontWeight: "700" },
-  desc: { fontSize: 15, color: "#555", marginTop: 6 },
-  section: { marginBottom: 25 },
-  sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10 },
-  optionRow: {
+
+  backBtn: {
+    backgroundColor: "#FF6B35",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 40,
+  },
+
+  backTxt: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+
+  title: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 30,
+    fontWeight: "900",
+    marginRight: 40, 
+  },
+
+  mainImage: {
+  width: Platform.OS === "web" ? "28%" : "40%",
+  maxWidth: 280,        // limite haute pour éviter gigantisme
+  aspectRatio: 1,
+  resizeMode: "contain",
+  borderRadius: 28,
+  marginVertical: 15,
+},
+
+
+  price: {
+    fontSize: 28,
+    fontWeight: "900",
+    textAlign: "center",
+    color: "#FF6B35",
+  },
+
+  desc: {
+    fontSize: 16,
+    textAlign: "center",
+    paddingHorizontal: 20,
+    marginTop: 8,
+    color: "#777",
+  },
+
+  section: {
+    marginTop: 30,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 16,
+  },
+
+  option: {
+    backgroundColor: "#F8F8F8",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 12,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 12,
-    marginBottom: 10,
   },
-  optionRowSelected: {
-    backgroundColor: "#FFF3EC",
+  optionActive: {
+    backgroundColor: "#FFF1E9",
+    borderWidth: 2,
     borderColor: "#FF6B35",
-    borderWidth: 1.5,
   },
-  optionLabel: { fontSize: 16, fontWeight: "500" },
-  optionPrice: { fontSize: 16, color: "#FF6B35", fontWeight: "600" },
-  quantityRow: {
+  optionLabel: { fontSize: 18 },
+  optionPrice: { fontSize: 18, fontWeight: "800", color: "#FF6B35" },
+
+  qtyRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 35,
     marginBottom: 20,
   },
+
   qtyBtn: {
-    backgroundColor: "#f2f2f2",
-    paddingHorizontal: 20,
+    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 22,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 14,
   },
-  qtyText: { fontSize: 22, fontWeight: "700" },
-  qtyNumber: { fontSize: 22, fontWeight: "700", marginHorizontal: 20 },
-  addButton: {
+  qtyText: { fontSize: 24, fontWeight: "800" },
+  qtyNumber: { fontSize: 24, fontWeight: "800", marginHorizontal: 25 },
+
+  addBtn: {
     backgroundColor: "#FF6B35",
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    alignItems: "center",
-    shadowColor: "#FF6B35",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    marginHorizontal: 20,
+    marginTop: 30,
+    paddingVertical: 20,
+    borderRadius: 40,
   },
-  addButtonText: {
-    color: "#fff",
+  addTxt: {
+    color: "#FFF",
     textAlign: "center",
-    fontWeight: "700",
-    fontSize: 18,
+    fontSize: 22,
+    fontWeight: "900",
   },
 });
