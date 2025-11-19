@@ -5,9 +5,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
-  Dimensions,
   Animated,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,41 +13,28 @@ import { useEffect, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchProductsByCategory, fetchCategoryById } from "@/services/api";
 import ProductCard from "@/components/ProductCard";
+import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
+import { KioskTheme } from "@/constants/theme";
+import { Category, Product } from "@/types/kiosk";
+import CartSummary from "@/components/kiosk/CartSummary";
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [products, setProducts] = useState([]);
-  const [category, setCategory] = useState(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fade = useRef(new Animated.Value(0)).current;
-
-  const screenWidth = Dimensions.get("window").width;
-
-  /** McDo-style responsive columns */
-  const getColumns = () => {
-    if (screenWidth < 400) return 1;  // ultra small phones
-    if (screenWidth < 700) return 2;  // standard phones
-    if (screenWidth < 1100) return 3;
-    if (screenWidth < 1500) return 4;
-    if (screenWidth < 2000) return 5;
-    return 6;
-  };
-
-  const columns = getColumns();
-  const gap = 28;
-
-  const itemWidth = (screenWidth - (gap * (columns - 1)) - 40) / columns;
-  // -40 = horizontal padding around grid
+  const { itemWidth, gap } = useResponsiveGrid();
 
   useEffect(() => {
     const load = async () => {
       try {
-        const c = await fetchCategoryById(id);
-        const p = await fetchProductsByCategory(id);
+        const c = await fetchCategoryById(Array.isArray(id) ? id[0] : id);
+        const p = await fetchProductsByCategory(Array.isArray(id) ? id[0] : id);
 
         setCategory(c);
         setProducts(p);
@@ -57,8 +42,8 @@ export default function CategoryScreen() {
         setLoading(false);
         Animated.timing(fade, {
           toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
+          duration: KioskTheme.animations.duration.medium,
+          useNativeDriver: KioskTheme.animations.config.useNativeDriver,
         }).start();
       }
     };
@@ -69,7 +54,7 @@ export default function CategoryScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
       </View>
     );
   }
@@ -97,7 +82,7 @@ export default function CategoryScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingHorizontal: 20,
-            paddingBottom: insets.bottom + 260,
+            paddingBottom: insets.bottom + 100, // Adjusted padding for CartSummary
           }}
         >
           <View style={[styles.grid, { gap }]}>
@@ -112,16 +97,8 @@ export default function CategoryScreen() {
           </View>
         </ScrollView>
 
-        {/* CART BUTTON FIXE */}
-        <TouchableOpacity
-          onPress={() => router.push("/kiosk/cart")}
-          style={[
-            styles.cartBtn,
-            { bottom: insets.bottom + 20 }
-          ]}
-        >
-          <Text style={styles.cartTxt}>🛒 Voir le panier</Text>
-        </TouchableOpacity>
+        {/* CART SUMMARY BAR */}
+        <CartSummary />
 
       </Animated.View>
     </SafeAreaView>
@@ -129,7 +106,7 @@ export default function CategoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F8F8F8" },
+  safe: { flex: 1, backgroundColor: KioskTheme.colors.backgroundSecondary },
 
   centered: {
     flex: 1, justifyContent: "center", alignItems: "center",
@@ -144,14 +121,14 @@ const styles = StyleSheet.create({
   },
 
   backBtn: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     paddingHorizontal: 22,
     paddingVertical: 10,
     borderRadius: 50,
   },
 
   backTxt: {
-    color: "#fff",
+    color: KioskTheme.colors.text.light,
     fontSize: 22,
     fontWeight: "900",
   },
@@ -159,28 +136,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontWeight: "900",
+    color: KioskTheme.colors.text.primary,
   },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-  },
-
-  cartBtn: {
-    position: "absolute",
-    alignSelf: "center",
-    backgroundColor: "#FF6B35",
-    paddingVertical: 22,
-    paddingHorizontal: 40,
-    borderRadius: 40,
-    width: "80%",
-    maxWidth: 460,
-  },
-
-  cartTxt: {
-    color: "#fff",
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "800",
   },
 });

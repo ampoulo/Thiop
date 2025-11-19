@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { clearCart } from "@/services/cartService";
+import { KioskTheme } from "@/constants/theme";
 
 export default function KioskPayment() {
   const router = useRouter();
@@ -12,8 +13,9 @@ export default function KioskPayment() {
       <TouchableOpacity
         style={styles.button}
         onPress={() => {
-            clearCart();
-            router.push("/kiosk/success")}}
+          clearCart();
+          router.push("/kiosk/success")
+        }}
       >
         <Text style={styles.text}>💳 Pay by Card</Text>
       </TouchableOpacity>
@@ -21,8 +23,9 @@ export default function KioskPayment() {
       <TouchableOpacity
         style={styles.button}
         onPress={() => {
-            clearCart();
-            router.push("/kiosk/success")}}
+          clearCart();
+          router.push("/kiosk/success")
+        }}
       >
         <Text style={styles.text}>💵 Pay by Cash</Text>
       </TouchableOpacity>
@@ -31,14 +34,15 @@ export default function KioskPayment() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 40 },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: KioskTheme.colors.background },
+  title: { fontSize: 28, fontWeight: "700", marginBottom: 40, color: KioskTheme.colors.text.primary },
   button: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     paddingVertical: 18,
     paddingHorizontal: 40,
     borderRadius: 12,
     marginVertical: 10,
+    ...KioskTheme.shadows.button,
   },
-  text: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  text: { color: KioskTheme.colors.text.light, fontSize: 18, fontWeight: "700" },
 });

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { KioskTheme } from "@/constants/theme";
 
 export default function KioskSuccess() {
   const router = useRouter();
@@ -21,10 +22,15 @@ export default function KioskSuccess() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: KioskTheme.colors.background },
   emoji: { fontSize: 80, marginBottom: 10 },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 10 },
-  subtitle: { color: "#555", fontSize: 16, marginBottom: 30 },
-  button: { backgroundColor: "#FF6B35", padding: 16, borderRadius: 12 },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  title: { fontSize: 28, fontWeight: "700", marginBottom: 10, color: KioskTheme.colors.text.primary },
+  subtitle: { color: KioskTheme.colors.text.secondary, fontSize: 16, marginBottom: 30 },
+  button: {
+    backgroundColor: KioskTheme.colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    ...KioskTheme.shadows.button,
+  },
+  buttonText: { color: KioskTheme.colors.text.light, fontWeight: "700", fontSize: 18 },
 });

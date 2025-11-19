@@ -8,49 +8,27 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
-  Dimensions,
-  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { fetchCategories } from "@/services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
+import { KioskTheme } from "@/constants/theme";
+import { Category } from "@/types/kiosk";
+import CartSummary from "@/components/kiosk/CartSummary";
 
 export default function KioskHome() {
   const insets = useSafeAreaInsets();
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
+  const { itemWidth, gap } = useResponsiveGrid();
 
   // Page animation
   const fadeScreen = useRef(new Animated.Value(0)).current;
   const translateScreen = useRef(new Animated.Value(20)).current;
 
-  const screenWidth = Dimensions.get("window").width;
-
-  /* ---------------------------------------------
-     🟧 FULLSCREEN McDo GRID LOGIC (same as Category)
-  ----------------------------------------------*/
-  const getColumns = () => {
-    if (screenWidth < 400) return 1;    // very small phones
-    if (screenWidth < 700) return 2;    // phones
-    if (screenWidth < 1100) return 3;   // tablets
-    if (screenWidth < 1500) return 4;   // small desktop
-    if (screenWidth < 2000) return 5;   // medium desktop
-    return 6;                           // large screens
-  };
-
-  const columns = getColumns();
-  const gap = 28; // McDo premium spacing
-
-  const itemWidth =
-    (screenWidth - (gap * (columns - 1)) - 40) / columns;
-  // -40 = paddingHorizontal of ScrollView
-
-
-  /* ---------------------------------------------
-     Fetch catégories
-  ----------------------------------------------*/
   useEffect(() => {
     const load = async () => {
       try {
@@ -63,13 +41,13 @@ export default function KioskHome() {
         Animated.parallel([
           Animated.timing(fadeScreen, {
             toValue: 1,
-            duration: 460,
-            useNativeDriver: true,
+            duration: KioskTheme.animations.duration.medium,
+            useNativeDriver: KioskTheme.animations.config.useNativeDriver,
           }),
           Animated.timing(translateScreen, {
             toValue: 0,
-            duration: 460,
-            useNativeDriver: true,
+            duration: KioskTheme.animations.duration.medium,
+            useNativeDriver: KioskTheme.animations.config.useNativeDriver,
           }),
         ]).start();
       }
@@ -81,27 +59,21 @@ export default function KioskHome() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
       </View>
     );
   }
 
-  /* ---------------------------------------------
-     🟥 Pas de catégories
-  ----------------------------------------------*/
   if (categories.length === 0) {
     return (
       <View style={styles.centered}>
-        <Text style={{ fontSize: 20, color: "#999" }}>
+        <Text style={{ fontSize: 20, color: KioskTheme.colors.text.secondary }}>
           Aucune catégorie disponible
         </Text>
       </View>
     );
   }
 
-  /* ---------------------------------------------
-     🟩 UI FINAL
-  ----------------------------------------------*/
   return (
     <Animated.View
       style={[
@@ -123,7 +95,7 @@ export default function KioskHome() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 20,
-          paddingBottom: insets.bottom + 260,
+          paddingBottom: insets.bottom + 100, // Adjusted padding for CartSummary
         }}
       >
         <View style={[styles.grid, { gap }]}>
@@ -136,13 +108,13 @@ export default function KioskHome() {
                 toValue: 1,
                 duration: 500,
                 delay: idx * 70,
-                useNativeDriver: true,
+                useNativeDriver: KioskTheme.animations.config.useNativeDriver,
               }),
               Animated.timing(translate, {
                 toValue: 0,
                 duration: 500,
                 delay: idx * 70,
-                useNativeDriver: true,
+                useNativeDriver: KioskTheme.animations.config.useNativeDriver,
               }),
             ]).start();
 
@@ -180,29 +152,17 @@ export default function KioskHome() {
         </View>
       </ScrollView>
 
-      {/* PANIER FIXE */}
-      <TouchableWithoutFeedback onPress={() => router.push("/kiosk/cart")}>
-  <View
-    style={[
-      styles.cartButton,
-      { bottom: insets.bottom + 20 },
-    ]}
-  >
-    <Text style={styles.cartText}>🛒 Voir le panier</Text>
-  </View>
-</TouchableWithoutFeedback>
+      {/* PANIER SUMMARY BAR */}
+      <CartSummary />
 
     </Animated.View>
   );
 }
 
-/* ---------------------------------------------
-   🎨 Styles McDo Premium
-----------------------------------------------*/
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: KioskTheme.colors.background,
     paddingTop: 40,
   },
 
@@ -217,13 +177,13 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
     marginBottom: 4,
-    color: "#222",
+    color: KioskTheme.colors.text.primary,
   },
 
   subtitle: {
     fontSize: 18,
     textAlign: "center",
-    color: "#777",
+    color: KioskTheme.colors.text.secondary,
     marginBottom: 32,
     paddingHorizontal: 20,
   },
@@ -234,22 +194,16 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 42,
+    backgroundColor: KioskTheme.colors.background,
+    borderRadius: KioskTheme.layout.borderRadius.large,
     paddingVertical: 26,
     paddingHorizontal: 10,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.13,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-
+    ...KioskTheme.shadows.card,
     alignItems: "center",
   },
 
   image: {
-    width: "60%", // cohérent avec ProductCard (Option B)
+    width: "60%",
     aspectRatio: 1,
     resizeMode: "contain",
     marginBottom: 18,
@@ -260,29 +214,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
     width: "90%",
-    color: "#222",
-  },
-
-  cartButton: {
-    position: "absolute",
-    alignSelf: "center",
-    backgroundColor: "#FF6B35",
-    paddingVertical: 22,
-    paddingHorizontal: 40,
-    borderRadius: 40,
-    width: "80%",
-    maxWidth: 460,
-
-    shadowColor: "#FF6B35",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-  },
-
-  cartText: {
-    color: "#FFF",
-    fontWeight: "900",
-    textAlign: "center",
-    fontSize: 20,
+    color: KioskTheme.colors.text.primary,
   },
 });

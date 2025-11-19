@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 import {
   addToCart,
@@ -20,15 +21,17 @@ import {
   getItemByKey,
 } from "@/services/cartService";
 import { fetchItemDetails } from "@/services/api";
+import { KioskTheme } from "@/constants/theme";
+import { Product, Attribute, AttributeValue } from "@/types/kiosk";
 
 export default function KioskItem() {
   const { id, edit, uniqueKey } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [item, setItem] = useState(null);
+  const [item, setItem] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<number, number[]>>({});
   const [quantity, setQuantity] = useState(1);
 
   /** ------- Anim bouton -------- */
@@ -36,8 +39,16 @@ export default function KioskItem() {
 
   const animateAdd = () => {
     Animated.sequence([
-      Animated.timing(addAnim, { toValue: 0.92, duration: 120, useNativeDriver: true }),
-      Animated.timing(addAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(addAnim, {
+        toValue: 0.92,
+        duration: KioskTheme.animations.duration.short,
+        useNativeDriver: KioskTheme.animations.config.useNativeDriver
+      }),
+      Animated.timing(addAnim, {
+        toValue: 1,
+        duration: KioskTheme.animations.duration.short,
+        useNativeDriver: KioskTheme.animations.config.useNativeDriver
+      }),
     ]).start();
   };
 
@@ -45,21 +56,23 @@ export default function KioskItem() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchItemDetails(id);
+        const productId = Array.isArray(id) ? id[0] : id;
+        const data = await fetchItemDetails(productId);
         setItem(data);
 
         if (edit === "true" && uniqueKey) {
-          const existing = await getItemByKey(uniqueKey);
+          const key = Array.isArray(uniqueKey) ? uniqueKey[0] : uniqueKey;
+          const existing = await getItemByKey(key);
           if (existing) {
-            const initial = {};
-            data.attributes?.forEach((attr) => {
-              const matchAttr = existing.selectedAttributes.find(
-                (a) => a.name === attr.name
+            const initial: Record<number, number[]> = {};
+            data.attributes?.forEach((attr: Attribute) => {
+              const matchAttr = existing.selectedAttributes?.find(
+                (a: any) => a.name === attr.name
               );
               if (matchAttr) {
                 const ids = attr.values
                   .filter((v) =>
-                    matchAttr.values.some((x) => x.name === v.name)
+                    matchAttr.values.some((x: any) => x.name === v.name)
                   )
                   .map((v) => v.id);
                 if (ids.length > 0) initial[attr.id] = ids;
@@ -77,15 +90,30 @@ export default function KioskItem() {
     load();
   }, []);
 
-  if (loading)
+  /** Prix total */
+  const basePrice = useMemo(() => {
+    if (!item) return 0;
+    let p = item.price;
+    item.attributes?.forEach((attr) => {
+      selectedAttributes[attr.id]?.forEach((id) => {
+        const obj = attr.values.find((v) => v.id === id);
+        p += obj?.price_extra ?? 0;
+      });
+    });
+    return p;
+  }, [item, selectedAttributes]);
+
+  const totalDisplay = (basePrice * quantity).toFixed(2);
+
+  if (loading || !item)
     return (
-      <View style={{ flex: 1, justifyContent: "center" }}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
       </View>
     );
 
   /** Sélection d’une option */
-  const selectValue = (attrId, valId, type) => {
+  const selectValue = (attrId: number, valId: number, type: 'radio' | 'checkbox') => {
     setSelectedAttributes((prev) => {
       const current = prev[attrId] || [];
       if (type === "radio") return { ...prev, [attrId]: [valId] };
@@ -97,24 +125,10 @@ export default function KioskItem() {
     });
   };
 
-  /** Prix total */
-  const getBasePrice = () => {
-    let p = item.price;
-    item.attributes?.forEach((attr) => {
-      selectedAttributes[attr.id]?.forEach((id) => {
-        const obj = attr.values.find((v) => v.id === id);
-        p += obj?.price_extra ?? 0;
-      });
-    });
-    return p;
-  };
-
-  const totalDisplay = (getBasePrice() * quantity).toFixed(2);
-
   /** Ajouter / Modifier panier */
   const saveCart = async () => {
     const selectedOptions = item.attributes
-      .map((attr) => {
+      ?.map((attr) => {
         const sel = selectedAttributes[attr.id];
         if (!sel) return null;
 
@@ -135,19 +149,31 @@ export default function KioskItem() {
       id: item.id,
       name: item.name,
       price: item.price,
-      total_price: getBasePrice(),
+      total_price: basePrice,
       quantity,
       image: item.image,
       selectedAttributes: selectedOptions,
     };
 
     if (edit === "true" && uniqueKey) {
-      await replaceCartItem(uniqueKey, data);
+      const key = Array.isArray(uniqueKey) ? uniqueKey[0] : uniqueKey;
+      await replaceCartItem(key, data);
+      Toast.show({
+        type: "success",
+        text1: "Panier mis à jour",
+        text2: `${item.name} a été modifié`,
+      });
     } else {
       await addToCart(data);
+      Toast.show({
+        type: "success",
+        text1: "Ajouté au panier",
+        text2: `${quantity}x ${item.name}`,
+      });
     }
 
-    router.push("/kiosk/cart");
+    // UX Improvement: Go back instead of to cart
+    router.back();
   };
 
   return (
@@ -238,7 +264,7 @@ export default function KioskItem() {
             ]}
           >
             <Text style={styles.addTxt}>
-              🛒 Ajouter • {totalDisplay} €
+              🛒 {edit === "true" ? "Modifier" : "Ajouter"} • {totalDisplay} €
             </Text>
           </Animated.View>
         </TouchableOpacity>
@@ -250,7 +276,7 @@ export default function KioskItem() {
 /* ---------------- STYLES MCDO PREMIUM ---------------- */
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFFFFF" },
+  safe: { flex: 1, backgroundColor: KioskTheme.colors.background },
 
   header: {
     flexDirection: "row",
@@ -260,14 +286,14 @@ const styles = StyleSheet.create({
   },
 
   backBtn: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 40,
   },
 
   backTxt: {
-    color: "#FFF",
+    color: KioskTheme.colors.text.light,
     fontSize: 22,
     fontWeight: "900",
   },
@@ -277,24 +303,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 30,
     fontWeight: "900",
-    marginRight: 40, 
+    marginRight: 40,
+    color: KioskTheme.colors.text.primary,
   },
 
   mainImage: {
-  width: Platform.OS === "web" ? "28%" : "40%",
-  maxWidth: 280,        // limite haute pour éviter gigantisme
-  aspectRatio: 1,
-  resizeMode: "contain",
-  borderRadius: 28,
-  marginVertical: 15,
-},
-
+    width: Platform.OS === "web" ? "28%" : "40%",
+    maxWidth: 280,
+    aspectRatio: 1,
+    resizeMode: "contain",
+    borderRadius: KioskTheme.layout.borderRadius.medium,
+    marginVertical: 15,
+  },
 
   price: {
     fontSize: 28,
     fontWeight: "900",
     textAlign: "center",
-    color: "#FF6B35",
+    color: KioskTheme.colors.primary,
   },
 
   desc: {
@@ -302,7 +328,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
     marginTop: 8,
-    color: "#777",
+    color: KioskTheme.colors.text.secondary,
   },
 
   section: {
@@ -313,10 +339,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     marginBottom: 16,
+    color: KioskTheme.colors.text.primary,
   },
 
   option: {
-    backgroundColor: "#F8F8F8",
+    backgroundColor: KioskTheme.colors.backgroundSecondary,
     borderRadius: 18,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -325,12 +352,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   optionActive: {
-    backgroundColor: "#FFF1E9",
+    backgroundColor: KioskTheme.colors.activeOption,
     borderWidth: 2,
-    borderColor: "#FF6B35",
+    borderColor: KioskTheme.colors.primary,
   },
-  optionLabel: { fontSize: 18 },
-  optionPrice: { fontSize: 18, fontWeight: "800", color: "#FF6B35" },
+  optionLabel: { fontSize: 18, color: KioskTheme.colors.text.primary },
+  optionPrice: { fontSize: 18, fontWeight: "800", color: KioskTheme.colors.primary },
 
   qtyRow: {
     flexDirection: "row",
@@ -346,18 +373,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
   },
-  qtyText: { fontSize: 24, fontWeight: "800" },
-  qtyNumber: { fontSize: 24, fontWeight: "800", marginHorizontal: 25 },
+  qtyText: { fontSize: 24, fontWeight: "800", color: KioskTheme.colors.text.primary },
+  qtyNumber: { fontSize: 24, fontWeight: "800", marginHorizontal: 25, color: KioskTheme.colors.text.primary },
 
   addBtn: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     marginHorizontal: 20,
     marginTop: 30,
     paddingVertical: 20,
     borderRadius: 40,
+    ...KioskTheme.shadows.button,
   },
   addTxt: {
-    color: "#FFF",
+    color: KioskTheme.colors.text.light,
     textAlign: "center",
     fontSize: 22,
     fontWeight: "900",

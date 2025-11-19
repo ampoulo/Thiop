@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // === CONFIGURATION DE L'API ODOO ===
-const ODOO_API_BASE_URL = 'http://192.168.1.71:8069'; // ton serveur Odoo
+const ODOO_API_BASE_URL = 'http://172.28.145.203:8069'; // ton serveur Odoo
 
 // === CLIENT AXIOS CONFIGURÉ ===
 const odooClient = axios.create({

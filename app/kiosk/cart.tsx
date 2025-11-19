@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  ScrollView,
   ActivityIndicator,
   SafeAreaView,
   Animated,
   useWindowDimensions,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,9 +19,11 @@ import {
   removeCartItem,
 } from "@/services/cartService";
 import { Trash2, ShoppingCart } from "lucide-react-native";
+import { KioskTheme } from "@/constants/theme";
+import { Cart, CartItem } from "@/types/kiosk";
 
 export default function KioskCart() {
-  const [cart, setCart] = useState<any>(null);
+  const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
@@ -33,32 +35,15 @@ export default function KioskCart() {
   useEffect(() => {
     Animated.timing(slideAnim, {
       toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
+      duration: KioskTheme.animations.duration.medium,
+      useNativeDriver: KioskTheme.animations.config.useNativeDriver,
     }).start();
   }, []);
 
-  /** ---------------- BOUNCE QUANTITY ---------------- **/
-  const bounce = useRef(new Animated.Value(1)).current;
-
-  const animateQty = () => {
-    Animated.sequence([
-      Animated.timing(bounce, {
-        toValue: 1.2,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-      Animated.timing(bounce, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
   /** ---------------- LOAD CART ---------------- **/
   const loadCart = async () => {
-    setLoading(true);
+    // Don't show full loading spinner on updates, just refresh
+    if (!cart) setLoading(true);
     const c = await getCart();
     setCart(c);
     setLoading(false);
@@ -68,10 +53,10 @@ export default function KioskCart() {
     loadCart();
   }, []);
 
-  if (loading)
+  if (loading && !cart)
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
       </View>
     );
 
@@ -93,11 +78,21 @@ export default function KioskCart() {
   const btnSize = width < 380 ? 26 : 32;
   const fontSize = width < 380 ? 16 : 20;
 
+  const renderItem = ({ item }: { item: CartItem }) => (
+    <CartItemRow
+      item={item}
+      btnSize={btnSize}
+      fontSize={fontSize}
+      onUpdate={loadCart}
+      router={router}
+    />
+  );
+
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top + 10 }]}>
       <Animated.View style={{ flex: 1, transform: [{ translateX: slideAnim }] }}>
-        <ScrollView contentContainerStyle={styles.container}>
-          
+
+        <View style={styles.container}>
           {/* 🔶 HEADER PREMIUM */}
           <View style={styles.topHeader}>
             <TouchableOpacity
@@ -110,7 +105,7 @@ export default function KioskCart() {
 
           {/* 🔶 TITRE CENTRÉ */}
           <View style={styles.titleRow}>
-            <ShoppingCart size={30} color="#222" strokeWidth={2.5} />
+            <ShoppingCart size={30} color={KioskTheme.colors.text.primary} strokeWidth={2.5} />
             <Text style={styles.headerTitle}>Votre commande</Text>
           </View>
 
@@ -125,106 +120,21 @@ export default function KioskCart() {
             </Text>
           </View>
 
-          {/* 🔶 LISTE PRODUITS */}
-          {cart.items.map((item: any) => (
-            <View key={item.uniqueKey} style={styles.card}>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() =>
-                  router.push({
-                    pathname: `/kiosk/item/${item.id}`,
-                    params: { edit: "true", uniqueKey: item.uniqueKey },
-                  })
-                }
-              >
-                <View style={styles.itemRow}>
-                  
-                  {/* ------- ARTICLE ------- */}
-                  <View style={styles.itemInfo}>
-                    {item.image ? (
-                      <Image
-                        source={{ uri: item.image }}
-                        style={styles.itemImage}
-                      />
-                    ) : (
-                      <View style={[styles.itemImage, styles.placeholderImage]}>
-                        <Text style={styles.placeholderText}>🍽️</Text>
-                      </View>
-                    )}
-
-                    <View style={{ flexShrink: 1 }}>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      {item.selectedAttributes?.map((attr: any, i: number) => (
-                        <View key={i}>
-                          {attr.values.map((v: any, j: number) => (
-                            <Text key={j} style={styles.optionText}>
-                              • {v.name} (+{v.price_extra.toFixed(2)} €)
-                            </Text>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* ------- QUANTITÉ ------- */}
-                  <View style={styles.qtyContainer}>
-                    <TouchableOpacity
-                      style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
-                      onPress={async () => {
-                        animateQty();
-                        await updateCartItem(item.uniqueKey, item.quantity - 1);
-                        loadCart();
-                      }}
-                    >
-                      <Text style={[styles.qtySymbol, { fontSize }]}>−</Text>
-                    </TouchableOpacity>
-
-                    <Animated.Text
-                      style={[styles.qtyNumber, { transform: [{ scale: bounce }] }]}
-                    >
-                      {item.quantity}
-                    </Animated.Text>
-
-                    <TouchableOpacity
-                      style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
-                      onPress={async () => {
-                        animateQty();
-                        await updateCartItem(item.uniqueKey, item.quantity + 1);
-                        loadCart();
-                      }}
-                    >
-                      <Text style={[styles.qtySymbol, { fontSize }]}>＋</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* ------- PRIX ------- */}
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.itemPrice}>
-                      {(item.total_price * item.quantity).toFixed(2)} €
-                    </Text>
-
-                    <TouchableOpacity
-                      onPress={async () => {
-                        await removeCartItem(item.uniqueKey);
-                        loadCart();
-                      }}
-                    >
-                      <Trash2 size={18} color="#bbb" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </View>
-          ))}
-
-          {/* TOTAL */}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalAmount}>{cart.total.toFixed(2)} €</Text>
-          </View>
-
-          <View style={{ height: 40 }} /> 
-        </ScrollView>
+          {/* 🔶 LISTE PRODUITS (FlatList) */}
+          <FlatList
+            data={cart.items}
+            keyExtractor={(item) => item.uniqueKey}
+            renderItem={renderItem}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalAmount}>{cart.total.toFixed(2)} €</Text>
+              </View>
+            }
+          />
+        </View>
 
         {/* ------- BOUTON PAYER FIXE ------- */}
         <View style={[styles.payButtonWrapper, { bottom: insets.bottom + 20 }]}>
@@ -240,13 +150,124 @@ export default function KioskCart() {
   );
 }
 
+// Sub-component for Cart Item to handle its own animations
+const CartItemRow = ({ item, btnSize, fontSize, onUpdate, router }: { item: CartItem, btnSize: number, fontSize: number, onUpdate: () => void, router: any }) => {
+  const bounce = useRef(new Animated.Value(1)).current;
+
+  const animateQty = () => {
+    Animated.sequence([
+      Animated.timing(bounce, {
+        toValue: 1.2,
+        duration: 120,
+        useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+      }),
+      Animated.timing(bounce, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+      }),
+    ]).start();
+  };
+
+  return (
+    <View style={styles.card}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() =>
+          router.push({
+            pathname: `/kiosk/item/${item.id}`,
+            params: { edit: "true", uniqueKey: item.uniqueKey },
+          })
+        }
+      >
+        <View style={styles.itemRow}>
+
+          {/* ------- ARTICLE ------- */}
+          <View style={styles.itemInfo}>
+            {item.image ? (
+              <Image
+                source={{ uri: item.image }}
+                style={styles.itemImage}
+              />
+            ) : (
+              <View style={[styles.itemImage, styles.placeholderImage]}>
+                <Text style={styles.placeholderText}>🍽️</Text>
+              </View>
+            )}
+
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              {item.selectedAttributes?.map((attr: any, i: number) => (
+                <View key={i}>
+                  {attr.values.map((v: any, j: number) => (
+                    <Text key={j} style={styles.optionText}>
+                      • {v.name} (+{v.price_extra.toFixed(2)} €)
+                    </Text>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* ------- QUANTITÉ ------- */}
+          <View style={styles.qtyContainer}>
+            <TouchableOpacity
+              style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
+              onPress={async () => {
+                animateQty();
+                await updateCartItem(item.uniqueKey, item.quantity - 1);
+                onUpdate();
+              }}
+            >
+              <Text style={[styles.qtySymbol, { fontSize }]}>−</Text>
+            </TouchableOpacity>
+
+            <Animated.Text
+              style={[styles.qtyNumber, { transform: [{ scale: bounce }] }]}
+            >
+              {item.quantity}
+            </Animated.Text>
+
+            <TouchableOpacity
+              style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
+              onPress={async () => {
+                animateQty();
+                await updateCartItem(item.uniqueKey, item.quantity + 1);
+                onUpdate();
+              }}
+            >
+              <Text style={[styles.qtySymbol, { fontSize }]}>＋</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ------- PRIX ------- */}
+          <View style={styles.priceContainer}>
+            <Text style={styles.itemPrice}>
+              {(item.total_price * item.quantity).toFixed(2)} €
+            </Text>
+
+            <TouchableOpacity
+              onPress={async () => {
+                await removeCartItem(item.uniqueKey);
+                onUpdate();
+              }}
+            >
+              <Trash2 size={18} color="#bbb" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 /* --------------------------------------------------- */
 /*                       STYLES                        */
 /* --------------------------------------------------- */
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#fff" },
-  container: { paddingHorizontal: 20, paddingBottom: 60 },
+  safe: { flex: 1, backgroundColor: KioskTheme.colors.background },
+  container: { flex: 1, paddingHorizontal: 20 },
 
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
 
@@ -258,13 +279,13 @@ const styles = StyleSheet.create({
   },
 
   headerBtn: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 22,
     borderRadius: 999,
   },
 
-  headerBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  headerBtnText: { color: KioskTheme.colors.text.light, fontWeight: "700", fontSize: 17 },
 
   titleRow: {
     flexDirection: "row",
@@ -278,7 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "900",
     marginLeft: 10,
-    color: "#222",
+    color: KioskTheme.colors.text.primary,
   },
 
   /* EN-TÊTES TABLEAU */
@@ -286,25 +307,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#f7f7f7",
+    backgroundColor: KioskTheme.colors.backgroundSecondary,
     marginBottom: 14,
   },
 
   headerText: {
     fontSize: 16,
     fontWeight: "700",
+    color: KioskTheme.colors.text.primary,
   },
 
   /* PRODUIT */
   card: {
-    backgroundColor: "white",
-    borderRadius: 22,
+    backgroundColor: KioskTheme.colors.background,
+    borderRadius: KioskTheme.layout.borderRadius.medium,
     padding: 16,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 2,
+    ...KioskTheme.shadows.small,
   },
 
   itemRow: {
@@ -331,8 +350,8 @@ const styles = StyleSheet.create({
   placeholderImage: { justifyContent: "center", alignItems: "center" },
   placeholderText: { fontSize: 26, opacity: 0.5 },
 
-  itemName: { fontSize: 17, fontWeight: "700" },
-  optionText: { fontSize: 14, color: "#777" },
+  itemName: { fontSize: 17, fontWeight: "700", color: KioskTheme.colors.text.primary },
+  optionText: { fontSize: 14, color: KioskTheme.colors.text.secondary },
 
   /* QUANTITY */
   qtyContainer: {
@@ -351,7 +370,7 @@ const styles = StyleSheet.create({
   },
 
   qtySymbol: { fontWeight: "800", color: "#333" },
-  qtyNumber: { fontSize: 17, fontWeight: "800" },
+  qtyNumber: { fontSize: 17, fontWeight: "800", color: KioskTheme.colors.text.primary },
 
   /* PRICE */
   priceContainer: {
@@ -362,7 +381,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  itemPrice: { fontSize: 17, fontWeight: "800", textAlign: "right" },
+  itemPrice: { fontSize: 17, fontWeight: "800", textAlign: "right", color: KioskTheme.colors.text.primary },
 
   /* TOTAL */
   totalRow: {
@@ -374,8 +393,8 @@ const styles = StyleSheet.create({
     borderTopColor: "#eee",
   },
 
-  totalLabel: { fontSize: 20, fontWeight: "800" },
-  totalAmount: { fontSize: 20, fontWeight: "900" },
+  totalLabel: { fontSize: 20, fontWeight: "800", color: KioskTheme.colors.text.primary },
+  totalAmount: { fontSize: 20, fontWeight: "900", color: KioskTheme.colors.text.primary },
 
   /* BOUTON FIXE */
   payButtonWrapper: {
@@ -386,26 +405,30 @@ const styles = StyleSheet.create({
   },
 
   payButton: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: KioskTheme.colors.primary,
     paddingVertical: 18,
     borderRadius: 999,
     width: "80%",
     maxWidth: 450,
-    shadowColor: "#FF6B35",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    ...KioskTheme.shadows.button,
   },
 
   payText: {
-    color: "#fff",
+    color: KioskTheme.colors.text.light,
     fontWeight: "900",
     fontSize: 18,
     textAlign: "center",
   },
 
   /* PANIER VIDE */
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: KioskTheme.colors.background },
   emptyContent: { gap: 20, alignItems: "center" },
-  emptyText: { fontSize: 18, fontWeight: "700" },
+  emptyText: { fontSize: 18, fontWeight: "700", color: KioskTheme.colors.text.primary },
+  addButton: {
+    backgroundColor: KioskTheme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+  },
+  addButtonText: { color: KioskTheme.colors.text.light, fontWeight: "700", fontSize: 16 },
 });
