@@ -23,6 +23,7 @@ import {
 import { fetchItemDetails } from "@/services/api";
 import { KioskTheme } from "@/constants/theme";
 import { Product, Attribute, AttributeValue } from "@/types/kiosk";
+import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function KioskItem() {
   const { id, edit, uniqueKey } = useLocalSearchParams();
@@ -106,11 +107,7 @@ export default function KioskItem() {
   const totalDisplay = (basePrice * quantity).toFixed(2);
 
   if (loading || !item)
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
-      </View>
-    );
+    return <LoadingAnimation />;
 
   /** Sélection d’une option */
   const selectValue = (attrId: number, valId: number, type: 'radio' | 'checkbox') => {
@@ -178,15 +175,17 @@ export default function KioskItem() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* HEADER FIXED */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backTxt}>⟵ Retour</Text>
+        </TouchableOpacity>
+        <Text style={styles.title} numberOfLines={1}>{item.name}</Text>
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 200 }}>
         {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backTxt}>⟵</Text>
-          </TouchableOpacity>
 
-          <Text style={styles.title}>{item.name}</Text>
-        </View>
 
         {/* IMAGE CENTRALE */}
         <View style={{ alignItems: "center", marginTop: 10 }}>
@@ -282,20 +281,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: KioskTheme.colors.background,
+    zIndex: 10,
   },
 
   backBtn: {
-    backgroundColor: KioskTheme.colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 40,
+    padding: 10,
+    marginRight: 10,
   },
 
   backTxt: {
-    color: KioskTheme.colors.text.light,
-    fontSize: 22,
-    fontWeight: "900",
+    fontSize: 16,
+    fontWeight: '600',
+    color: KioskTheme.colors.text.secondary,
   },
 
   title: {

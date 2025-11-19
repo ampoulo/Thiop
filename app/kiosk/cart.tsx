@@ -21,6 +21,7 @@ import {
 import { Trash2, ShoppingCart } from "lucide-react-native";
 import { KioskTheme } from "@/constants/theme";
 import { Cart, CartItem } from "@/types/kiosk";
+import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function KioskCart() {
   const [cart, setCart] = useState<Cart | null>(null);
@@ -54,11 +55,7 @@ export default function KioskCart() {
   }, []);
 
   if (loading && !cart)
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
-      </View>
-    );
+    return <LoadingAnimation />;
 
   if (!cart || cart.items.length === 0)
     return (
@@ -69,7 +66,7 @@ export default function KioskCart() {
             style={styles.addButton}
             onPress={() => router.push("/kiosk/menu")}
           >
-            <Text style={styles.addButtonText}>Ajouter d'autres produits</Text>
+            <Text style={styles.addButtonText}>Continuer ma commande</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -99,7 +96,7 @@ export default function KioskCart() {
               style={styles.headerBtn}
               onPress={() => router.push("/kiosk/menu")}
             >
-              <Text style={styles.headerBtnText}>Ajouter d'autres produits</Text>
+              <Text style={styles.headerBtnText}>Continuer ma commande</Text>
             </TouchableOpacity>
           </View>
 
@@ -169,94 +166,98 @@ const CartItemRow = ({ item, btnSize, fontSize, onUpdate, router }: { item: Cart
     ]).start();
   };
 
+  const handleEdit = () => {
+    router.push({
+      pathname: `/kiosk/item/${item.id}`,
+      params: { edit: "true", uniqueKey: item.uniqueKey },
+    });
+  };
+
   return (
     <View style={styles.card}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() =>
-          router.push({
-            pathname: `/kiosk/item/${item.id}`,
-            params: { edit: "true", uniqueKey: item.uniqueKey },
-          })
-        }
-      >
-        <View style={styles.itemRow}>
+      <View style={styles.itemRow}>
 
-          {/* ------- ARTICLE ------- */}
-          <View style={styles.itemInfo}>
-            {item.image ? (
-              <Image
-                source={{ uri: item.image }}
-                style={styles.itemImage}
-              />
-            ) : (
-              <View style={[styles.itemImage, styles.placeholderImage]}>
-                <Text style={styles.placeholderText}>🍽️</Text>
-              </View>
-            )}
-
-            <View style={{ flexShrink: 1 }}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              {item.selectedAttributes?.map((attr: any, i: number) => (
-                <View key={i}>
-                  {attr.values.map((v: any, j: number) => (
-                    <Text key={j} style={styles.optionText}>
-                      • {v.name} (+{v.price_extra.toFixed(2)} €)
-                    </Text>
-                  ))}
-                </View>
-              ))}
+        {/* ------- ARTICLE (Clickable for Edit) ------- */}
+        <TouchableOpacity
+          style={styles.itemInfo}
+          activeOpacity={0.7}
+          onPress={handleEdit}
+        >
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.itemImage}
+            />
+          ) : (
+            <View style={[styles.itemImage, styles.placeholderImage]}>
+              <Text style={styles.placeholderText}>🍽️</Text>
             </View>
+          )}
+
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            {item.selectedAttributes?.map((attr: any, i: number) => (
+              <View key={i}>
+                {attr.values.map((v: any, j: number) => (
+                  <Text key={j} style={styles.optionText}>
+                    • {v.name} (+{v.price_extra.toFixed(2)} €)
+                  </Text>
+                ))}
+              </View>
+            ))}
+
+            {/* EDIT INDICATOR REMOVED FOR CLEANER UI */}
           </View>
+        </TouchableOpacity>
 
-          {/* ------- QUANTITÉ ------- */}
-          <View style={styles.qtyContainer}>
-            <TouchableOpacity
-              style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
-              onPress={async () => {
-                animateQty();
-                await updateCartItem(item.uniqueKey, item.quantity - 1);
-                onUpdate();
-              }}
-            >
-              <Text style={[styles.qtySymbol, { fontSize }]}>−</Text>
-            </TouchableOpacity>
+        {/* ------- QUANTITÉ ------- */}
+        <View style={styles.qtyContainer}>
+          <TouchableOpacity
+            style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
+            onPress={async () => {
+              animateQty();
+              await updateCartItem(item.uniqueKey, item.quantity - 1);
+              onUpdate();
+            }}
+          >
+            <Text style={[styles.qtySymbol, { fontSize }]}>−</Text>
+          </TouchableOpacity>
 
-            <Animated.Text
-              style={[styles.qtyNumber, { transform: [{ scale: bounce }] }]}
-            >
-              {item.quantity}
-            </Animated.Text>
+          <Animated.Text
+            style={[styles.qtyNumber, { transform: [{ scale: bounce }] }]}
+          >
+            {item.quantity}
+          </Animated.Text>
 
-            <TouchableOpacity
-              style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
-              onPress={async () => {
-                animateQty();
-                await updateCartItem(item.uniqueKey, item.quantity + 1);
-                onUpdate();
-              }}
-            >
-              <Text style={[styles.qtySymbol, { fontSize }]}>＋</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ------- PRIX ------- */}
-          <View style={styles.priceContainer}>
-            <Text style={styles.itemPrice}>
-              {(item.total_price * item.quantity).toFixed(2)} €
-            </Text>
-
-            <TouchableOpacity
-              onPress={async () => {
-                await removeCartItem(item.uniqueKey);
-                onUpdate();
-              }}
-            >
-              <Trash2 size={18} color="#bbb" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.qtyBtn, { width: btnSize, height: btnSize }]}
+            onPress={async () => {
+              animateQty();
+              await updateCartItem(item.uniqueKey, item.quantity + 1);
+              onUpdate();
+            }}
+          >
+            <Text style={[styles.qtySymbol, { fontSize }]}>＋</Text>
+          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+
+        {/* ------- PRIX ------- */}
+        <View style={styles.priceContainer}>
+          <Text style={styles.itemPrice}>
+            {(item.total_price * item.quantity).toFixed(2)} €
+          </Text>
+
+          <TouchableOpacity
+            onPress={async () => {
+              await removeCartItem(item.uniqueKey);
+              onUpdate();
+            }}
+            style={styles.deleteBtn}
+          >
+            <Trash2 size={20} color="#FF512F" />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 };
@@ -382,6 +383,12 @@ const styles = StyleSheet.create({
   },
 
   itemPrice: { fontSize: 17, fontWeight: "800", textAlign: "right", color: KioskTheme.colors.text.primary },
+
+  deleteBtn: {
+    padding: 10,
+    backgroundColor: '#FFF5F5',
+    borderRadius: 8,
+  },
 
   /* TOTAL */
   totalRow: {

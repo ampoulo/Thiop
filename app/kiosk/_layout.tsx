@@ -1,18 +1,21 @@
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native";
 import { View, StyleSheet, Platform } from "react-native";
+import { InactivityHandler } from "@/components/kiosk/InactivityHandler";
 
 export default function KioskLayout() {
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "fade",
-          }}
-        />
-      </View>
+      <InactivityHandler>
+        <View style={styles.container}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "fade",
+            }}
+          />
+        </View>
+      </InactivityHandler>
     </SafeAreaView>
   );
 }
@@ -24,9 +27,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    width: "100%",
-    maxWidth: 1200, // ⭐ Very important for desktop layout
-    alignSelf: "center",
     backgroundColor: "#fff",
   },
 });

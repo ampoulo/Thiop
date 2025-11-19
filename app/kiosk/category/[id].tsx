@@ -17,6 +17,7 @@ import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
 import { KioskTheme } from "@/constants/theme";
 import { Category, Product } from "@/types/kiosk";
 import CartSummary from "@/components/kiosk/CartSummary";
+import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams();
@@ -52,11 +53,7 @@ export default function CategoryScreen() {
   }, [id]);
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
-      </View>
-    );
+    return <LoadingAnimation />;
   }
 
   return (
@@ -69,7 +66,7 @@ export default function CategoryScreen() {
             style={styles.backBtn}
             onPress={() => router.push("/kiosk/menu")}
           >
-            <Text style={styles.backTxt}>⟵</Text>
+            <Text style={styles.backTxt}>⟵ Retour</Text>
           </TouchableOpacity>
 
           <View style={{ flex: 1, alignItems: "center", marginRight: 60 }}>
@@ -121,16 +118,13 @@ const styles = StyleSheet.create({
   },
 
   backBtn: {
-    backgroundColor: KioskTheme.colors.primary,
-    paddingHorizontal: 22,
-    paddingVertical: 10,
-    borderRadius: 50,
+    padding: 10,
   },
 
   backTxt: {
-    color: KioskTheme.colors.text.light,
-    fontSize: 22,
-    fontWeight: "900",
+    fontSize: 16,
+    fontWeight: '600',
+    color: KioskTheme.colors.text.secondary,
   },
 
   title: {

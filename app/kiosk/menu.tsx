@@ -9,19 +9,25 @@ import {
   Animated,
   ScrollView,
   TouchableOpacity,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { fetchCategories } from "@/services/api";
+import { getCart, setOrderType } from "@/services/cartService";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
 import { KioskTheme } from "@/constants/theme";
 import { Category } from "@/types/kiosk";
 import CartSummary from "@/components/kiosk/CartSummary";
+import { XCircle, RefreshCw, LogOut } from "lucide-react-native";
+import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function KioskMenu() {
   const insets = useSafeAreaInsets();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [orderType, setOrderTypeState] = useState<'eat_in' | 'take_out'>('eat_in');
 
   const router = useRouter();
   const { itemWidth, gap } = useResponsiveGrid();
@@ -33,8 +39,9 @@ export default function KioskMenu() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchCategories();
-        setCategories(data);
+        const [cats, cart] = await Promise.all([fetchCategories(), getCart()]);
+        setCategories(cats);
+        if (cart) setOrderTypeState(cart.orderType || 'eat_in');
       } finally {
         setLoading(false);
 
@@ -57,12 +64,29 @@ export default function KioskMenu() {
     load();
   }, []);
 
+  const handleBackPress = async () => {
+    const cart = await getCart();
+    if (!cart || cart.items.length === 0) {
+      router.replace("/kiosk");
+    } else {
+      setShowExitModal(true);
+    }
+  };
+
+  const handleSwitchMode = async () => {
+    const newType = orderType === 'eat_in' ? 'take_out' : 'eat_in';
+    await setOrderType(newType);
+    setOrderTypeState(newType);
+    setShowExitModal(false);
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitModal(false);
+    router.replace("/kiosk");
+  };
+
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={KioskTheme.colors.primary} />
-      </View>
-    );
+    return <LoadingAnimation />;
   }
 
   if (categories.length === 0) {
@@ -87,14 +111,16 @@ export default function KioskMenu() {
     >
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace("/kiosk")} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
           <Text style={styles.backText}>⟵ Retour</Text>
         </TouchableOpacity>
-        <View>
+        <View style={{ alignItems: 'center' }}>
           <Text style={styles.title}>Notre Carte</Text>
-          <Text style={styles.subtitle}>
-            Sélectionnez une catégorie
-          </Text>
+          <View style={styles.modeBadge}>
+            <Text style={styles.modeText}>
+              {orderType === 'eat_in' ? '🍽️ Sur place' : '🛍️ À emporter'}
+            </Text>
+          </View>
         </View>
         <View style={{ width: 80 }} />
       </View>
@@ -164,6 +190,54 @@ export default function KioskMenu() {
       {/* PANIER SUMMARY BAR */}
       <CartSummary />
 
+      {/* EXIT / MODE MODAL */}
+      <Modal
+        transparent
+        visible={showExitModal}
+        animationType="fade"
+        onRequestClose={() => setShowExitModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Déjà fini ? 🥺</Text>
+            <Text style={styles.modalText}>
+              Vous avez des articles dans votre panier. Que voulez-vous faire ?
+            </Text>
+
+            <View style={styles.modalActions}>
+              {/* SWITCH MODE */}
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.btnSwitch]}
+                onPress={handleSwitchMode}
+              >
+                <RefreshCw size={24} color="#fff" style={{ marginRight: 10 }} />
+                <Text style={styles.modalBtnText}>
+                  Passer en {orderType === 'eat_in' ? 'À emporter' : 'Sur place'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* CANCEL ORDER */}
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.btnCancel]}
+                onPress={handleConfirmExit}
+              >
+                <LogOut size={24} color="#FF512F" style={{ marginRight: 10 }} />
+                <Text style={[styles.modalBtnText, { color: '#FF512F' }]}>
+                  Annuler ma commande
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeModal}
+              onPress={() => setShowExitModal(false)}
+            >
+              <Text style={styles.closeText}>Non, je continue mes achats</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </Animated.View>
   );
 }
@@ -207,10 +281,19 @@ const styles = StyleSheet.create({
     color: KioskTheme.colors.text.primary,
   },
 
-  subtitle: {
-    fontSize: 18,
-    textAlign: "center",
+  modeBadge: {
+    backgroundColor: KioskTheme.colors.backgroundSecondary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 5,
+  },
+
+  modeText: {
+    fontSize: 14,
+    fontWeight: "700",
     color: KioskTheme.colors.text.secondary,
+    textTransform: "uppercase",
   },
 
   grid: {
@@ -240,5 +323,69 @@ const styles = StyleSheet.create({
     textAlign: "center",
     width: "90%",
     color: KioskTheme.colors.text.primary,
+  },
+
+  /* MODAL STYLES */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    width: 600,
+    padding: 40,
+    borderRadius: 30,
+    alignItems: 'center',
+    ...KioskTheme.shadows.card,
+  },
+  modalTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: KioskTheme.colors.text.primary,
+    marginBottom: 16,
+  },
+  modalText: {
+    fontSize: 20,
+    color: KioskTheme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 30,
+  },
+  modalActions: {
+    width: '100%',
+    gap: 20,
+    marginBottom: 30,
+  },
+  modalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    borderRadius: 16,
+    width: '100%',
+  },
+  btnSwitch: {
+    backgroundColor: KioskTheme.colors.primary,
+  },
+  btnCancel: {
+    backgroundColor: '#FFF0E6',
+    borderWidth: 2,
+    borderColor: '#FF512F',
+  },
+  modalBtnText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  closeModal: {
+    padding: 10,
+  },
+  closeText: {
+    fontSize: 18,
+    color: KioskTheme.colors.text.secondary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

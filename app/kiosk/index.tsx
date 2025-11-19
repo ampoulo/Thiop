@@ -1,18 +1,35 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, useWindowDimensions, ScrollView, ImageBackground, TouchableWithoutFeedback } from "react-native";
 import { useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KioskTheme } from "@/constants/theme";
 import { setOrderType, clearCart } from "@/services/cartService";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function KioskWelcome() {
     const router = useRouter();
+    const { width, height } = useWindowDimensions();
+    const [isStandby, setIsStandby] = useState(true);
+
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.9)).current;
+    const blinkAnim = useRef(new Animated.Value(1)).current;
+    const buttonsFadeAnim = useRef(new Animated.Value(0)).current;
+    const buttonsTranslateAnim = useRef(new Animated.Value(50)).current;
+
+    // Responsive Logic
+    const isSmallScreen = width < 800;
+    const cardWidth = isSmallScreen ? Math.min(width - 60, 300) : 300;
+    const cardHeight = isSmallScreen ? 200 : 320;
+    const iconSize = isSmallScreen ? 40 : 50;
+    const titleSize = isSmallScreen ? 24 : 28;
+    const logoSize = isSmallScreen ? 40 : 60;
+    const questionSize = isSmallScreen ? 24 : 32;
+    const gap = isSmallScreen ? 20 : 40;
 
     useEffect(() => {
-        // Reset cart on welcome screen
         clearCart();
 
+        // Entrance Animation
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -26,7 +43,42 @@ export default function KioskWelcome() {
                 useNativeDriver: true,
             }),
         ]).start();
+
+        // Blinking Text Animation
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(blinkAnim, {
+                    toValue: 0.3,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(blinkAnim, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
     }, []);
+
+    const wakeUp = () => {
+        if (!isStandby) return;
+        setIsStandby(false);
+
+        // Animate buttons in
+        Animated.parallel([
+            Animated.timing(buttonsFadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(buttonsTranslateAnim, {
+                toValue: 0,
+                friction: 6,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
 
     const handleSelection = async (type: 'eat_in' | 'take_out') => {
         await setOrderType(type);
@@ -34,58 +86,94 @@ export default function KioskWelcome() {
     };
 
     return (
-        <View style={styles.container}>
-            <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <TouchableWithoutFeedback onPress={wakeUp}>
+            <View style={styles.container}>
+                {/* MODERN BACKGROUND */}
+                <LinearGradient
+                    colors={['#FF512F', '#DD2476']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <ImageBackground
+                    source={{ uri: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=2565&auto=format&fit=crop" }}
+                    style={StyleSheet.absoluteFill}
+                    imageStyle={{ opacity: 0.15 }}
+                    resizeMode="cover"
+                />
 
-                {/* LOGO / BRANDING */}
-                <View style={styles.logoContainer}>
-                    <Text style={styles.logoText}>🍔 Thiop</Text>
-                </View>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
 
-                <Text style={styles.question}>Où souhaitez-vous manger ?</Text>
-
-                <View style={styles.buttonsRow}>
-                    {/* SUR PLACE */}
-                    <TouchableOpacity
-                        style={styles.card}
-                        activeOpacity={0.8}
-                        onPress={() => handleSelection('eat_in')}
-                    >
-                        <View style={styles.iconCircle}>
-                            <Text style={styles.icon}>🍽️</Text>
+                        {/* LOGO / BRANDING */}
+                        <View style={[styles.logoContainer, isStandby && styles.logoCentered]}>
+                            <Text style={[styles.logoText, { fontSize: isStandby ? 80 : logoSize }]}>🍔 Thiop</Text>
                         </View>
-                        <Text style={styles.cardTitle}>Sur place</Text>
-                    </TouchableOpacity>
 
-                    {/* A EMPORTER */}
-                    <TouchableOpacity
-                        style={styles.card}
-                        activeOpacity={0.8}
-                        onPress={() => handleSelection('take_out')}
-                    >
-                        <View style={[styles.iconCircle, styles.iconCircleAlt]}>
-                            <Text style={styles.icon}>🛍️</Text>
-                        </View>
-                        <Text style={styles.cardTitle}>À emporter</Text>
-                    </TouchableOpacity>
-                </View>
+                        {!isStandby && (
+                            <Animated.View style={{ opacity: buttonsFadeAnim, transform: [{ translateY: buttonsTranslateAnim }], width: '100%', alignItems: 'center' }}>
+                                <Text style={[styles.question, { fontSize: questionSize }]}>Où souhaitez-vous manger ?</Text>
 
-            </Animated.View>
+                                <View style={[styles.buttonsRow, { gap, flexDirection: isSmallScreen ? 'column' : 'row' }]}>
+                                    {/* SUR PLACE */}
+                                    <TouchableOpacity
+                                        style={[styles.card, { width: cardWidth, paddingVertical: isSmallScreen ? 30 : 50 }]}
+                                        activeOpacity={0.8}
+                                        onPress={() => handleSelection('eat_in')}
+                                    >
+                                        <View style={[styles.iconCircle, {
+                                            width: isSmallScreen ? 80 : 100,
+                                            height: isSmallScreen ? 80 : 100,
+                                            borderRadius: isSmallScreen ? 40 : 50
+                                        }]}>
+                                            <Text style={[styles.icon, { fontSize: iconSize }]}>🍽️</Text>
+                                        </View>
+                                        <Text style={[styles.cardTitle, { fontSize: titleSize }]}>Sur place</Text>
+                                    </TouchableOpacity>
 
-            {/* FOOTER DECO */}
-            <View style={styles.footer}>
-                <Text style={styles.footerText}>Touchez l'écran pour commencer</Text>
+                                    {/* A EMPORTER */}
+                                    <TouchableOpacity
+                                        style={[styles.card, { width: cardWidth, paddingVertical: isSmallScreen ? 30 : 50 }]}
+                                        activeOpacity={0.8}
+                                        onPress={() => handleSelection('take_out')}
+                                    >
+                                        <View style={[styles.iconCircle, styles.iconCircleAlt, {
+                                            width: isSmallScreen ? 80 : 100,
+                                            height: isSmallScreen ? 80 : 100,
+                                            borderRadius: isSmallScreen ? 40 : 50
+                                        }]}>
+                                            <Text style={[styles.icon, { fontSize: iconSize }]}>🛍️</Text>
+                                        </View>
+                                        <Text style={[styles.cardTitle, { fontSize: titleSize }]}>À emporter</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </Animated.View>
+                        )}
+
+                    </Animated.View>
+                </ScrollView>
+
+                {/* FOOTER DECO */}
+                {isStandby && (
+                    <View style={styles.footer}>
+                        <Animated.Text style={[styles.footerText, { opacity: blinkAnim }]}>
+                            Touchez l'écran pour commencer
+                        </Animated.Text>
+                    </View>
+                )}
             </View>
-        </View>
+        </TouchableWithoutFeedback>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: KioskTheme.colors.primary, // Brand color background
+        backgroundColor: "#000",
+    },
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: "center",
         alignItems: "center",
+        paddingVertical: 40,
     },
     content: {
         alignItems: "center",
@@ -93,39 +181,39 @@ const styles = StyleSheet.create({
         maxWidth: 900,
     },
     logoContainer: {
-        marginBottom: 60,
+        marginBottom: 40,
         alignItems: "center",
     },
+    logoCentered: {
+        marginBottom: 0, // Center vertically in standby
+        transform: [{ scale: 1.2 }],
+    },
     logoText: {
-        fontSize: 60,
         fontWeight: "900",
         color: "#fff",
         marginBottom: 10,
-    },
-    subtitle: {
-        fontSize: 24,
-        color: "rgba(255,255,255,0.8)",
-        fontWeight: "600",
-        textTransform: "uppercase",
-        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.3)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
     },
     question: {
-        fontSize: 32,
         fontWeight: "800",
         color: "#fff",
         marginBottom: 40,
+        textAlign: "center",
+        paddingHorizontal: 20,
+        textShadowColor: 'rgba(0, 0, 0, 0.3)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
     },
     buttonsRow: {
-        flexDirection: "row",
-        gap: 40,
+        alignItems: "center",
     },
     card: {
         backgroundColor: "#fff",
         borderRadius: 30,
-        paddingVertical: 50,
-        paddingHorizontal: 60,
+        paddingHorizontal: 20,
         alignItems: "center",
-        width: 300,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
@@ -133,9 +221,6 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     iconCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
         backgroundColor: "#FFF0E6",
         justifyContent: "center",
         alignItems: "center",
@@ -145,20 +230,26 @@ const styles = StyleSheet.create({
         backgroundColor: "#E6F4FF",
     },
     icon: {
-        fontSize: 50,
+        // fontSize handled dynamically
     },
     cardTitle: {
-        fontSize: 28,
         fontWeight: "800",
         color: "#333",
     },
     footer: {
         position: "absolute",
-        bottom: 40,
+        bottom: 80,
+        alignSelf: "center",
     },
     footerText: {
-        color: "rgba(255,255,255,0.6)",
-        fontSize: 18,
-        fontWeight: "600",
+        color: "rgba(255,255,255,0.9)",
+        fontSize: 24,
+        fontWeight: "700",
+        textAlign: "center",
+        textTransform: "uppercase",
+        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
     },
 });
