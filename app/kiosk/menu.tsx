@@ -10,16 +10,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  TextInput,
+  Keyboard,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { fetchCategories } from "@/services/api";
+import { fetchCategories, searchProducts } from "@/services/api";
 import { getCart, setOrderType } from "@/services/cartService";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
 import { KioskTheme } from "@/constants/theme";
-import { Category } from "@/types/kiosk";
+import { Category, Product } from "@/types/kiosk";
 import CartSummary from "@/components/kiosk/CartSummary";
-import { XCircle, RefreshCw, LogOut } from "lucide-react-native";
+import { XCircle, RefreshCw, LogOut, Search, X } from "lucide-react-native";
 import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function KioskMenu() {
@@ -28,6 +30,12 @@ export default function KioskMenu() {
   const [loading, setLoading] = useState(true);
   const [showExitModal, setShowExitModal] = useState(false);
   const [orderType, setOrderTypeState] = useState<'eat_in' | 'take_out'>('eat_in');
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeout = useRef<any>(null);
 
   const router = useRouter();
   const { itemWidth, gap } = useResponsiveGrid();
@@ -85,6 +93,28 @@ export default function KioskMenu() {
     router.replace("/kiosk");
   };
 
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+    if (text.length > 2) {
+      setIsSearching(true);
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      searchTimeout.current = setTimeout(async () => {
+        const results = await searchProducts(text);
+        setSearchResults(results);
+      }, 500);
+    } else {
+      setIsSearching(false);
+      setSearchResults([]);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setIsSearching(false);
+    Keyboard.dismiss();
+  };
+
   if (loading) {
     return <LoadingAnimation />;
   }
@@ -111,18 +141,41 @@ export default function KioskMenu() {
     >
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-          <Text style={styles.backText}>⟵ Retour</Text>
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.title}>Notre Carte</Text>
-          <View style={styles.modeBadge}>
-            <Text style={styles.modeText}>
-              {orderType === 'eat_in' ? '🍽️ Sur place' : '🛍️ À emporter'}
-            </Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+            <Text style={styles.backText}>⟵ Retour</Text>
+          </TouchableOpacity>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.title}>Notre Carte</Text>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeText}>
+                {orderType === 'eat_in' ? '🍽️ Sur place' : '🛍️ À emporter'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ width: 80 }} />
+        </View>
+
+        {/* SEARCH BAR */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Search size={24} color={KioskTheme.colors.text.secondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher un produit..."
+              placeholderTextColor={KioskTheme.colors.text.secondary}
+              value={searchQuery}
+              onChangeText={handleSearch}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch}>
+                <X size={24} color={KioskTheme.colors.text.secondary} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
-        <View style={{ width: 80 }} />
       </View>
 
       {/* FULLSCREEN GRID */}
@@ -134,56 +187,87 @@ export default function KioskMenu() {
         }}
       >
         <View style={[styles.grid, { gap }]}>
-          {categories.map((item, idx) => {
-            const fade = new Animated.Value(0);
-            const translate = new Animated.Value(20);
-
-            Animated.parallel([
-              Animated.timing(fade, {
-                toValue: 1,
-                duration: 500,
-                delay: idx * 70,
-                useNativeDriver: KioskTheme.animations.config.useNativeDriver,
-              }),
-              Animated.timing(translate, {
-                toValue: 0,
-                duration: 500,
-                delay: idx * 70,
-                useNativeDriver: KioskTheme.animations.config.useNativeDriver,
-              }),
-            ]).start();
-
-            return (
-              <TouchableWithoutFeedback
-                key={item.id}
-                onPress={() =>
-                  router.push(`/kiosk/category/${item.id}`)
-                }
-              >
-                <Animated.View
-                  style={[
-                    styles.card,
-                    {
-                      width: itemWidth,
-                      opacity: fade,
-                      transform: [{ translateY: translate }],
-                    },
-                  ]}
+          {isSearching ? (
+            searchResults.length > 0 ? (
+              searchResults.map((item) => (
+                <TouchableWithoutFeedback
+                  key={item.id}
+                  onPress={() => router.push(`/kiosk/item/${item.id}`)}
                 >
-                  <Image
-                    source={{
-                      uri: item.image || "https://via.placeholder.com/200",
-                    }}
-                    style={styles.image}
-                  />
+                  <View
+                    style={[
+                      styles.card,
+                      { width: itemWidth, alignItems: 'center' }
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: item.image || "https://via.placeholder.com/200" }}
+                      style={styles.image}
+                    />
+                    <Text style={styles.name} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.price}>{item.price} €</Text>
+                  </View>
+                </TouchableWithoutFeedback>
+              ))
+            ) : (
+              <View style={styles.noResults}>
+                <Text style={styles.noResultsText}>Aucun produit trouvé pour "{searchQuery}"</Text>
+              </View>
+            )
+          ) : (
+            categories.map((item, idx) => {
+              const fade = new Animated.Value(0);
+              const translate = new Animated.Value(20);
 
-                  <Text style={styles.name} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                </Animated.View>
-              </TouchableWithoutFeedback>
-            );
-          })}
+              Animated.parallel([
+                Animated.timing(fade, {
+                  toValue: 1,
+                  duration: 500,
+                  delay: idx * 70,
+                  useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+                }),
+                Animated.timing(translate, {
+                  toValue: 0,
+                  duration: 500,
+                  delay: idx * 70,
+                  useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+                }),
+              ]).start();
+
+              return (
+                <TouchableWithoutFeedback
+                  key={item.id}
+                  onPress={() =>
+                    router.push(`/kiosk/category/${item.id}`)
+                  }
+                >
+                  <Animated.View
+                    style={[
+                      styles.card,
+                      {
+                        width: itemWidth,
+                        opacity: fade,
+                        transform: [{ translateY: translate }],
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={{
+                        uri: item.image || "https://via.placeholder.com/200",
+                      }}
+                      style={styles.image}
+                    />
+
+                    <Text style={styles.name} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </Animated.View>
+                </TouchableWithoutFeedback>
+              );
+            })
+          )}
         </View>
       </ScrollView>
 
@@ -256,11 +340,63 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
     marginBottom: 20,
+  },
+
+  headerCenter: {
+    alignItems: 'center',
+  },
+
+  searchContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    width: '100%',
+    maxWidth: 600,
+    ...KioskTheme.shadows.card,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 18,
+    marginLeft: 12,
+    color: KioskTheme.colors.text.primary,
+    fontWeight: '500',
+  },
+
+  noResults: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+
+  noResultsText: {
+    fontSize: 20,
+    color: KioskTheme.colors.text.secondary,
+    fontWeight: '600',
+  },
+
+  price: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: KioskTheme.colors.primary,
+    marginTop: 8,
   },
 
   backButton: {

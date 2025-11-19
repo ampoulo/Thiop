@@ -77,6 +77,37 @@ export const fetchFeaturedItems = async () => {
 
 //
 // ============================
+// 🚀  API ODOO : RECHERCHE
+// ============================
+//
+export const searchProducts = async (query: string) => {
+  try {
+    const response = await odooClient.get('/api/products', {
+      params: { search: query }
+    });
+    const data = response.data;
+
+    if (data.status === 200 && data.data) {
+      return data.data.map((product: any) => ({
+        id: product.id.toString(),
+        name: product.name,
+        restaurant: product.category?.name || 'Restaurant',
+        image: product.image || null,
+        price: product.price,
+        rating: 4.5,
+        in_stock: product.in_stock,
+      }));
+    }
+
+    return [];
+  } catch (error) {
+    console.error('❌ Erreur searchProducts:', error);
+    return [];
+  }
+};
+
+//
+// ============================
 // 🚀  API ODOO : DÉTAIL PRODUIT
 // ============================
 //
@@ -169,5 +200,6 @@ export default {
   fetchItemDetails,
   fetchRestaurants,
   fetchProductsByCategory,
-  fetchCategoryById
+  fetchCategoryById,
+  searchProducts
 };
