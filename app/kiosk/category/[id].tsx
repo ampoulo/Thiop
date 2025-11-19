@@ -67,7 +67,7 @@ export default function CategoryScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.push("/kiosk")}
+            onPress={() => router.push("/kiosk/menu")}
           >
             <Text style={styles.backTxt}>⟵</Text>
           </TouchableOpacity>

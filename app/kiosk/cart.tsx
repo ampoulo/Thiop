@@ -67,7 +67,7 @@ export default function KioskCart() {
           <Text style={styles.emptyText}>🛒 Votre panier est vide</Text>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push("/kiosk")}
+            onPress={() => router.push("/kiosk/menu")}
           >
             <Text style={styles.addButtonText}>Ajouter d'autres produits</Text>
           </TouchableOpacity>
@@ -97,7 +97,7 @@ export default function KioskCart() {
           <View style={styles.topHeader}>
             <TouchableOpacity
               style={styles.headerBtn}
-              onPress={() => router.push("/kiosk")}
+              onPress={() => router.push("/kiosk/menu")}
             >
               <Text style={styles.headerBtnText}>Ajouter d'autres produits</Text>
             </TouchableOpacity>

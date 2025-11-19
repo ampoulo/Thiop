@@ -46,6 +46,7 @@ const createEmptyCart = () => ({
   subtotal: 0,
   deliveryFee: 0,
   total: 0,
+  orderType: 'eat_in',
 });
 
 const computeTotalPriceIfMissing = (item: any) => {
@@ -70,6 +71,8 @@ const recalc = () => {
   currentCart.subtotal = +subtotal.toFixed(2);
   currentCart.deliveryFee = 0; // remets ton calcul si besoin
   currentCart.total = +(subtotal + currentCart.deliveryFee).toFixed(2);
+  // Ensure orderType exists
+  if (!currentCart.orderType) currentCart.orderType = 'eat_in';
 };
 
 const saveCart = async () => {
@@ -224,6 +227,14 @@ export const getItemByKey = async (uniqueKey: string) => {
   return currentCart.items.find((i: any) => i.uniqueKey === uniqueKey) || null;
 };
 
+// Définir le type de commande (Sur place / À emporter)
+export const setOrderType = async (type: 'eat_in' | 'take_out') => {
+  if (!currentCart) await loadCart();
+  currentCart.orderType = type;
+  await saveCart();
+  return currentCart;
+};
+
 export default {
   getCart,
   addToCart,
@@ -232,4 +243,5 @@ export default {
   replaceCartItem,
   getItemByKey,
   clearCart,
+  setOrderType,
 };

@@ -15,7 +15,7 @@ export default function KioskSuccess() {
         style={styles.button}
         onPress={() => router.replace("/kiosk")}
       >
-        <Text style={styles.buttonText}>New Order</Text>
+        <Text style={styles.buttonText}>Nouvelle Commande</Text>
       </TouchableOpacity>
     </View>
   );
