@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // === CONFIGURATION DE L'API ODOO ===
-const ODOO_API_BASE_URL = 'http://10.188.4.75:8069'; // ton serveur Odoo
+const ODOO_API_BASE_URL = 'http://localhost:8069'; // ton serveur Odoo
 
 // === CLIENT AXIOS CONFIGURÉ ===
 const odooClient = axios.create({
@@ -12,7 +12,40 @@ const odooClient = axios.create({
   timeout: 10000,
 });
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Variable locale pour stocker l'ID en mémoire (plus fiable/rapide que AsyncStorage)
+let currentCompanyId: string | null = null;
+
+export const setApiCompanyId = (id: string | null) => {
+  currentCompanyId = id;
+  console.log(`[API] Company ID set to: ${id}`);
+};
+
 // === Gestion des erreurs ===
+odooClient.interceptors.request.use(
+  async (config) => {
+    try {
+      // On utilise la variable mémoire en priorité, sinon AsyncStorage
+      let companyId = currentCompanyId;
+      if (!companyId) {
+        companyId = await AsyncStorage.getItem('COMPANY_ID');
+      }
+
+      console.log(`[API] Request to ${config.url} - Injecting company_id: ${companyId}`);
+      if (companyId) {
+        config.params = { ...config.params, company_id: companyId };
+      }
+    } catch (error) {
+      console.error("Error injecting company_id", error);
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 odooClient.interceptors.response.use(
   response => response,
   error => {
@@ -142,13 +175,33 @@ export const fetchItemDetails = async (id: string) => {
 
 //
 // ============================
-// 🍽️  RESTAURANTS (FAUX TEMPORAIRE)
+// 🍽️  RESTAURANTS (COMPANIES)
 // ============================
 //
-export const fetchRestaurants = async () => [
-  { id: '201', name: 'Pizza Palace', cuisine: 'Italian', rating: 4.7, deliveryTime: '25-35 min', deliveryFee: 2.99, distance: 1.2 },
-  { id: '202', name: 'Burger Joint', cuisine: 'American', rating: 4.5, deliveryTime: '15-25 min', deliveryFee: 1.99, distance: 0.8 },
-];
+export const fetchCompanies = async () => {
+  try {
+    const response = await odooClient.get('/api/companies');
+    const data = response.data;
+
+    if (data.status === 200 && data.data) {
+      return data.data.map((company: any) => ({
+        id: company.id.toString(),
+        name: company.name,
+        logo: company.logo || null,
+        email: company.email,
+        phone: company.phone
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('❌ Erreur fetchCompanies:', error);
+    return [];
+  }
+};
+
+// Garder pour compatibilité temporaire si utilisé ailleurs, sinon à supprimer
+export const fetchRestaurants = fetchCompanies;
+
 export const fetchProductsByCategory = async (categoryId: string) => {
   try {
     const response = await odooClient.get(`/api/categories/${categoryId}/products`);
@@ -198,8 +251,49 @@ export default {
   fetchCategories,
   fetchFeaturedItems,
   fetchItemDetails,
+  fetchCompanies,
   fetchRestaurants,
   fetchProductsByCategory,
   fetchCategoryById,
   searchProducts
+};
+
+// === COMMANDES ===
+export const createOrder = async (cart: any, type: 'eat_in' | 'take_out') => {
+  try {
+    // Préparation des lignes de commande
+    const lines = cart.items.map((item: any) => ({
+      product_id: item.id,
+      qty: item.quantity,
+      price_unit: item.total_price, // Prix unitaire (avec suppléments déjà calculés dans le cart)
+      attributes: item.selectedAttributes?.flatMap((attr: any) =>
+        attr.values.map((v: any) => ({ name: attr.name, value: v.name }))
+      ) || []
+    }));
+
+    const response = await odooClient.post('/api/orders', {
+      type,
+      lines
+    });
+
+    if (response.data.error) {
+      throw new Error(response.data.error);
+    }
+
+    return response.data.data; // { id: 123, name: "S0001" }
+  } catch (error) {
+    console.error("Error creating order:", error);
+    throw error;
+  }
+};
+
+// === AUTHENTIFICATION ===
+export const login = async (login, password) => {
+  try {
+    const response = await odooClient.post('/api/login', { login, password });
+    return response.data.data;
+  } catch (error) {
+    console.error("Error logging in:", error);
+    throw error;
+  }
 };

@@ -1,14 +1,17 @@
 import { View, Text, StyleSheet, TouchableOpacity, Animated, useWindowDimensions, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { clearCart } from "@/services/cartService";
+import { clearCart, getCart } from "@/services/cartService";
+import { createOrder } from "@/services/api";
 import { KioskTheme } from "@/constants/theme";
 import { CreditCard, Banknote } from "lucide-react-native";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { Alert, ActivityIndicator } from "react-native";
 
 export default function KioskPayment() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [processing, setProcessing] = useState(false);
 
   // Responsive Logic
   const isSmallScreen = width < 800;
@@ -27,9 +30,44 @@ export default function KioskPayment() {
   }, []);
 
   const handlePayment = async (method: string) => {
-    // Simulate processing
-    await clearCart();
-    router.push("/kiosk/success");
+    console.log("handlePayment called with method:", method);
+    if (processing) {
+      console.log("Already processing, ignoring click.");
+      return;
+    }
+    setProcessing(true);
+
+    try {
+      console.log("Fetching cart...");
+      // 1. Récupérer le panier actuel
+      const cart = await getCart();
+      console.log("Cart fetched:", cart);
+
+      if (!cart || cart.items.length === 0) {
+        console.log("Cart is empty");
+        Alert.alert("Erreur", "Votre panier est vide.");
+        setProcessing(false);
+        return;
+      }
+
+      console.log("Creating order in Odoo...");
+      // 2. Créer la commande dans Odoo
+      // TODO: Récupérer le type de commande (sur place / à emporter) depuis le contexte ou le panier
+      // Pour l'instant on met 'eat_in' par défaut, à améliorer plus tard
+      const order = await createOrder(cart, 'eat_in');
+
+      console.log("Order created successfully:", order);
+
+      // 3. Vider le panier local
+      await clearCart();
+
+      // 4. Rediriger vers succès
+      router.push("/kiosk/success");
+    } catch (error) {
+      console.error("Payment failed with error:", error);
+      Alert.alert("Erreur", "La création de la commande a échoué. Veuillez réessayer.");
+      setProcessing(false);
+    }
   };
 
   return (

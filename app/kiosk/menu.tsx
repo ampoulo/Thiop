@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableWithoutFeedback,
   Image,
-  ActivityIndicator,
   Animated,
   ScrollView,
   TouchableOpacity,
@@ -44,33 +44,36 @@ export default function KioskMenu() {
   const fadeScreen = useRef(new Animated.Value(0)).current;
   const translateScreen = useRef(new Animated.Value(20)).current;
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [cats, cart] = await Promise.all([fetchCategories(), getCart()]);
-        setCategories(cats);
-        if (cart) setOrderTypeState(cart.orderType || 'eat_in');
-      } finally {
-        setLoading(false);
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        setLoading(true); // On remet le loading pour montrer que ça charge
+        try {
+          const [cats, cart] = await Promise.all([fetchCategories(), getCart()]);
+          setCategories(cats);
+          if (cart) setOrderTypeState(cart.orderType || 'eat_in');
+        } finally {
+          setLoading(false);
 
-        // animations
-        Animated.parallel([
-          Animated.timing(fadeScreen, {
-            toValue: 1,
-            duration: KioskTheme.animations.duration.medium,
-            useNativeDriver: KioskTheme.animations.config.useNativeDriver,
-          }),
-          Animated.timing(translateScreen, {
-            toValue: 0,
-            duration: KioskTheme.animations.duration.medium,
-            useNativeDriver: KioskTheme.animations.config.useNativeDriver,
-          }),
-        ]).start();
-      }
-    };
+          // animations
+          Animated.parallel([
+            Animated.timing(fadeScreen, {
+              toValue: 1,
+              duration: KioskTheme.animations.duration.medium,
+              useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+            }),
+            Animated.timing(translateScreen, {
+              toValue: 0,
+              duration: KioskTheme.animations.duration.medium,
+              useNativeDriver: KioskTheme.animations.config.useNativeDriver,
+            }),
+          ]).start();
+        }
+      };
 
-    load();
-  }, []);
+      load();
+    }, [])
+  );
 
   const handleBackPress = async () => {
     const cart = await getCart();
@@ -119,15 +122,8 @@ export default function KioskMenu() {
     return <LoadingAnimation />;
   }
 
-  if (categories.length === 0) {
-    return (
-      <View style={styles.centered}>
-        <Text style={{ fontSize: 20, color: KioskTheme.colors.text.secondary }}>
-          Aucune catégorie disponible
-        </Text>
-      </View>
-    );
-  }
+  // On supprime le bloc de retour prématuré pour garder le header
+  // if (categories.length === 0) { ... }
 
   return (
     <Animated.View
@@ -216,6 +212,12 @@ export default function KioskMenu() {
                 <Text style={styles.noResultsText}>Aucun produit trouvé pour "{searchQuery}"</Text>
               </View>
             )
+          ) : categories.length === 0 ? (
+            <View style={{ width: '100%', alignItems: 'center', marginTop: 100 }}>
+              <Text style={{ fontSize: 20, color: KioskTheme.colors.text.secondary }}>
+                Aucune catégorie disponible
+              </Text>
+            </View>
           ) : (
             categories.map((item, idx) => {
               const fade = new Animated.Value(0);

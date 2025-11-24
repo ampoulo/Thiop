@@ -44,14 +44,14 @@ export const InactivityHandler = ({ children }: { children: React.ReactNode }) =
 
       if (elapsed >= MAX_INACTIVITY_MS) {
         // Timeout reached
-        if (pathname !== '/kiosk' && pathname !== '/kiosk/') {
+        if (pathname !== '/kiosk' && pathname !== '/kiosk/' && pathname !== '/kiosk/login') {
           console.log("Inactivity timeout - redirecting");
           router.replace('/kiosk');
         }
         resetTimer(); // Reset after redirect
       } else if (elapsed >= WARNING_THRESHOLD_MS) {
         // Warning threshold reached
-        if (!showWarning) {
+        if (!showWarning && pathname !== '/kiosk/login') {
           setShowWarning(true);
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -68,8 +68,8 @@ export const InactivityHandler = ({ children }: { children: React.ReactNode }) =
     };
   }, [pathname, showWarning]);
 
-  // If we are already on the welcome screen, we don't need the warning
-  if (pathname === '/kiosk' || pathname === '/kiosk/') {
+  // Si on est sur l'écran de login, pas besoin de timeout
+  if (pathname === '/kiosk/login') {
     return <View style={{ flex: 1 }}>{children}</View>;
   }
 

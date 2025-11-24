@@ -80,7 +80,7 @@ export default function CartSummary() {
 
                 {/* RIGHT: Action Button */}
                 <View style={styles.actionBtn}>
-                    <Text style={styles.actionText}>Voir ma commande</Text>
+                    <Text style={styles.actionText}>Procéder au paiement</Text>
                     <Text style={styles.arrow}>→</Text>
                 </View>
             </TouchableOpacity>
