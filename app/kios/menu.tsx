@@ -15,8 +15,8 @@ import {
     Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { fetchCategories, searchProducts, fetchProductsByCategory, fetchItemDetails } from "@/services/api";
-import { getCart, setOrderType, addToCart } from "@/services/cartService";
+import { fetchCategories, searchProducts, fetchProductsByCategory } from "@/services/api";
+import { getCart, setOrderType } from "@/services/cartService";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useResponsiveGrid } from "@/hooks/useResponsiveGrid";
 import { KioskTheme } from "@/constants/theme";
@@ -27,7 +27,6 @@ import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 import ProductDetailsModal from "@/components/kiosk/ProductDetailsModal";
 import ProductCard from "@/components/ProductCard";
 import Reanimated from "react-native-reanimated";
-import Toast from "react-native-toast-message";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -66,9 +65,6 @@ export default function KioskMenu() {
     const productsOpacity = useRef(new Animated.Value(0)).current;
     const gridOpacity = useRef(new Animated.Value(1)).current;
 
-    // Category animation refs (for staggered animation)
-    const categoryAnimRefs = useRef<Map<number, Animated.ValueXY>>(new Map());
-
     useFocusEffect(
         useCallback(() => {
             const load = async () => {
@@ -77,13 +73,6 @@ export default function KioskMenu() {
                     const [cats, cart] = await Promise.all([fetchCategories(), getCart()]);
                     setCategories(cats);
                     if (cart) setOrderTypeState(cart.orderType || 'eat_in');
-
-                    // Initialize animation values for each category
-                    cats.forEach((cat) => {
-                        if (!categoryAnimRefs.current.has(cat.id)) {
-                            categoryAnimRefs.current.set(cat.id, new Animated.ValueXY({ x: 0, y: 0 }));
-                        }
-                    });
                 } finally {
                     setLoading(false);
 
@@ -138,24 +127,11 @@ export default function KioskMenu() {
         setSearchQuery(text);
         if (text.length > 2) {
             setIsSearching(true);
-
-            if (viewMode === 'grid') {
-                // Global search via API
-                if (searchTimeout.current) clearTimeout(searchTimeout.current);
-                searchTimeout.current = setTimeout(async () => {
-                    const results = await searchProducts(text);
-                    setSearchResults(results);
-                }, 500);
-            } else {
-                // Local search within current category products
-                if (searchTimeout.current) clearTimeout(searchTimeout.current);
-                searchTimeout.current = setTimeout(() => {
-                    const filtered = products.filter((p) =>
-                        p.name.toLowerCase().includes(text.toLowerCase())
-                    );
-                    setSearchResults(filtered);
-                }, 300);
-            }
+            if (searchTimeout.current) clearTimeout(searchTimeout.current);
+            searchTimeout.current = setTimeout(async () => {
+                const results = await searchProducts(text);
+                setSearchResults(results);
+            }, 500);
         } else {
             setIsSearching(false);
             setSearchResults([]);
@@ -180,59 +156,26 @@ export default function KioskMenu() {
             setLoadingProducts(false);
         }
 
-        // SIMPLIFIED ANIMATION: Staggered left movement
+        // Animate to category view
         setViewMode('category');
-
-        // Animate categories flying left in staggered fashion
-        const animations = categories.map((cat, idx) => {
-            const animValue = categoryAnimRefs.current.get(cat.id);
-            if (!animValue) return null;
-
-            return Animated.parallel([
-                Animated.timing(animValue.x, {
-                    toValue: -SCREEN_WIDTH, // Move far left
-                    duration: 500,
-                    delay: idx * 50, // Stagger each by 50ms
-                    useNativeDriver: true,
-                }),
-                Animated.timing(animValue.y, {
-                    toValue: idx * 10, // Slight vertical spacing
-                    duration: 500,
-                    delay: idx * 50,
-                    useNativeDriver: true,
-                }),
-            ]);
-        }).filter(Boolean);
-
         Animated.parallel([
-            ...animations,
             Animated.timing(gridOpacity, {
                 toValue: 0,
-                duration: 600,
+                duration: 300,
                 useNativeDriver: true,
             }),
-            Animated.spring(sidebarTranslateX, {
+            Animated.timing(sidebarTranslateX, {
                 toValue: 0,
-                damping: 15,
-                stiffness: 70,
-                mass: 1,
+                duration: 400,
                 useNativeDriver: true,
             }),
             Animated.timing(productsOpacity, {
                 toValue: 1,
-                duration: 500,
-                delay: 300,
+                duration: 400,
+                delay: 200,
                 useNativeDriver: true,
             }),
-        ]).start(() => {
-            // Reset animations for next time
-            categories.forEach((cat) => {
-                const animValue = categoryAnimRefs.current.get(cat.id);
-                if (animValue) {
-                    animValue.setValue({ x: 0, y: 0 });
-                }
-            });
-        });
+        ]).start();
     };
 
     const handleReturnToGrid = () => {
@@ -240,18 +183,18 @@ export default function KioskMenu() {
         Animated.parallel([
             Animated.timing(productsOpacity, {
                 toValue: 0,
-                duration: 150,
+                duration: 300,
                 useNativeDriver: true,
             }),
             Animated.timing(sidebarTranslateX, {
                 toValue: -280,
-                duration: 250,
+                duration: 400,
                 useNativeDriver: true,
             }),
             Animated.timing(gridOpacity, {
                 toValue: 1,
-                duration: 300,
-                delay: 100,
+                duration: 400,
+                delay: 200,
                 useNativeDriver: true,
             }),
         ]).start(() => {
@@ -264,41 +207,6 @@ export default function KioskMenu() {
     const handleProductPress = (product: Product) => {
         setSelectedProduct(product);
         setModalVisible(true);
-    };
-
-    const handleQuickAdd = async (product: Product) => {
-        // Fetch full product details to check for attributes
-        try {
-            const fullProduct = await fetchItemDetails(product.id.toString());
-
-            // Check if product has attributes that require selection
-            const hasAttributes = fullProduct.attributes && fullProduct.attributes.length > 0;
-
-            if (hasAttributes) {
-                // Open modal for configuration
-                setSelectedProduct(fullProduct);
-                setModalVisible(true);
-            } else {
-                // Add directly to cart
-                await addToCart({
-                    id: fullProduct.id,
-                    name: fullProduct.name,
-                    price: fullProduct.price,
-                    image: fullProduct.image,
-                    quantity: 1,
-                    selectedAttributes: [],
-                });
-
-                // Show toast notification
-                Toast.show({
-                    type: "success",
-                    text1: "Ajouté au panier",
-                    text2: `${fullProduct.name}`,
-                });
-            }
-        } catch (error) {
-            console.error("Error adding product:", error);
-        }
     };
 
     if (loading) {
@@ -326,13 +234,11 @@ export default function KioskMenu() {
                         <Text style={styles.title}>
                             {viewMode === 'category' && selectedCategory ? selectedCategory.name : 'Notre Carte'}
                         </Text>
-                        {viewMode === 'grid' && (
-                            <View style={styles.modeBadge}>
-                                <Text style={styles.modeText}>
-                                    {orderType === 'eat_in' ? '🍽️ Sur place' : '🛍️ À emporter'}
-                                </Text>
-                            </View>
-                        )}
+                        <View style={styles.modeBadge}>
+                            <Text style={styles.modeText}>
+                                {orderType === 'eat_in' ? '🍽️ Sur place' : '🛍️ À emporter'}
+                            </Text>
+                        </View>
                     </View>
 
                     <View style={{ width: 80 }} />
@@ -436,34 +342,25 @@ export default function KioskMenu() {
                                     </View>
                                 ) : (
                                     categories.map((item, idx) => {
-                                        const animValue = categoryAnimRefs.current.get(item.id) || new Animated.ValueXY();
-
                                         return (
-                                            <Animated.View
+                                            <TouchableWithoutFeedback
                                                 key={item.id}
-                                                style={{
-                                                    width: itemWidth,
-                                                    transform: animValue.getTranslateTransform(),
-                                                }}
+                                                onPress={() => handleCategoryPress(item)}
                                             >
-                                                <TouchableWithoutFeedback
-                                                    onPress={() => handleCategoryPress(item)}
-                                                >
-                                                    <View style={styles.card}>
-                                                        <Reanimated.Image
-                                                            source={{
-                                                                uri: item.image || "https://via.placeholder.com/200",
-                                                            }}
-                                                            style={styles.image}
-                                                            sharedTransitionTag={`category-icon-${item.id}`}
-                                                        />
+                                                <View style={[styles.card, { width: itemWidth }]}>
+                                                    <Reanimated.Image
+                                                        source={{
+                                                            uri: item.image || "https://via.placeholder.com/200",
+                                                        }}
+                                                        style={styles.image}
+                                                        sharedTransitionTag={`category-icon-${item.id}`}
+                                                    />
 
-                                                        <Text style={styles.name} numberOfLines={1}>
-                                                            {item.name}
-                                                        </Text>
-                                                    </View>
-                                                </TouchableWithoutFeedback>
-                                            </Animated.View>
+                                                    <Text style={styles.name} numberOfLines={1}>
+                                                        {item.name}
+                                                    </Text>
+                                                </View>
+                                            </TouchableWithoutFeedback>
                                         );
                                     })
                                 )}
@@ -487,31 +384,14 @@ export default function KioskMenu() {
                                 }}
                             >
                                 <View style={[styles.grid, { gap }]}>
-                                    {isSearching ? (
-                                        searchResults.length > 0 ? (
-                                            searchResults.map((item) => (
-                                                <View key={item.id} style={{ width: itemWidth }}>
-                                                    <ProductCard
-                                                        item={item}
-                                                        onQuickAdd={handleQuickAdd}
-                                                    />
-                                                </View>
-                                            ))
-                                        ) : (
-                                            <View style={styles.noResults}>
-                                                <Text style={styles.noResultsText}>Aucun produit trouvé pour "{searchQuery}"</Text>
-                                            </View>
-                                        )
-                                    ) : (
-                                        products.map((item) => (
-                                            <View key={item.id} style={{ width: itemWidth }}>
-                                                <ProductCard
-                                                    item={item}
-                                                    onQuickAdd={handleQuickAdd}
-                                                />
-                                            </View>
-                                        ))
-                                    )}
+                                    {products.map((item) => (
+                                        <View key={item.id} style={{ width: itemWidth }}>
+                                            <ProductCard
+                                                item={item}
+                                                onPress={() => handleProductPress(item)}
+                                            />
+                                        </View>
+                                    ))}
                                 </View>
                             </ScrollView>
                         )}
@@ -576,9 +456,6 @@ export default function KioskMenu() {
                     </View>
                 </View>
             </Modal>
-
-            {/* Toast Message */}
-            <Toast />
 
         </Animated.View>
     );

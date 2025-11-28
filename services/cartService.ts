@@ -3,6 +3,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const CART_STORAGE_KEY = "food_delivery_cart";
 let currentCart: any = null;
 
+// ---------- Event Listeners ----------
+type CartListener = () => void;
+const cartListeners: CartListener[] = [];
+
+export const addCartListener = (listener: CartListener) => {
+  cartListeners.push(listener);
+  return () => {
+    const index = cartListeners.indexOf(listener);
+    if (index > -1) cartListeners.splice(index, 1);
+  };
+};
+
+const notifyCartListeners = () => {
+  cartListeners.forEach(listener => {
+    try {
+      listener();
+    } catch (error) {
+      console.error("Error in cart listener:", error);
+    }
+  });
+};
+
 // ---------- Utils ----------
 
 // Tri des attributs/valeurs pour une clé stable, peu importe l'ordre de sélection
@@ -110,6 +132,7 @@ export const clearCart = async () => {
     // noop
   }
   await saveCart();
+  notifyCartListeners();
   return currentCart;
 };
 
@@ -152,6 +175,7 @@ export const addToCart = async (item: any) => {
   // 💰 Recalcul des totaux
   recalc();
   await saveCart();
+  notifyCartListeners();
   return currentCart;
 };
 
@@ -170,6 +194,7 @@ export const updateCartItem = async (uniqueKey: string, quantity: number) => {
 
   recalc();
   await saveCart();
+  notifyCartListeners();
   return currentCart;
 };
 
@@ -179,6 +204,7 @@ export const removeCartItem = async (uniqueKey: string) => {
   currentCart.items = currentCart.items.filter((i: any) => i.uniqueKey !== uniqueKey);
   recalc();
   await saveCart();
+  notifyCartListeners();
   return currentCart;
 };
 
@@ -218,6 +244,7 @@ export const replaceCartItem = async (oldKey: string, newItem: any) => {
 
   recalc();
   await saveCart();
+  notifyCartListeners();
   return currentCart;
 };
 

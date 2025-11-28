@@ -61,8 +61,11 @@ export default function KioskPayment() {
       // 3. Vider le panier local
       await clearCart();
 
-      // 4. Rediriger vers succès
-      router.push("/kiosk/success");
+      // 4. Rediriger vers le reçu
+      router.push({
+        pathname: "/kiosk/receipt",
+        params: { orderData: JSON.stringify(order) }
+      });
     } catch (error) {
       console.error("Payment failed with error:", error);
       Alert.alert("Erreur", "La création de la commande a échoué. Veuillez réessayer.");

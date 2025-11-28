@@ -17,15 +17,18 @@ import {
   getCart,
   updateCartItem,
   removeCartItem,
+  clearCart,
 } from "@/services/cartService";
-import { Trash2, ShoppingCart } from "lucide-react-native";
+import { Trash2, ShoppingCart, AlertTriangle } from "lucide-react-native";
 import { KioskTheme } from "@/constants/theme";
 import { Cart, CartItem } from "@/types/kiosk";
 import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
+import { Modal } from "react-native";
 
 export default function KioskCart() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -48,6 +51,12 @@ export default function KioskCart() {
     const c = await getCart();
     setCart(c);
     setLoading(false);
+  };
+
+  const handleClearCart = async () => {
+    await clearCart();
+    setShowClearModal(false);
+    loadCart();
   };
 
   useEffect(() => {
@@ -98,6 +107,14 @@ export default function KioskCart() {
             >
               <Text style={styles.headerBtnText}>Continuer ma commande</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.clearBtn}
+              onPress={() => setShowClearModal(true)}
+            >
+              <Trash2 size={20} color="#FF512F" style={{ marginRight: 8 }} />
+              <Text style={styles.clearBtnText}>Vider le panier</Text>
+            </TouchableOpacity>
           </View>
 
           {/* 🔶 TITRE CENTRÉ */}
@@ -143,6 +160,40 @@ export default function KioskCart() {
           </TouchableOpacity>
         </View>
       </Animated.View>
+
+      {/* CLEAR CONFIRMATION MODAL */}
+      <Modal
+        transparent
+        visible={showClearModal}
+        animationType="fade"
+        onRequestClose={() => setShowClearModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <AlertTriangle size={48} color="#FF512F" style={{ marginBottom: 16 }} />
+            <Text style={styles.modalTitle}>Vider le panier ?</Text>
+            <Text style={styles.modalText}>
+              Êtes-vous sûr de vouloir supprimer tous les articles de votre panier ?
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.btnCancel]}
+                onPress={() => setShowClearModal(false)}
+              >
+                <Text style={styles.modalBtnTextCancel}>Annuler</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.btnConfirm]}
+                onPress={handleClearCart}
+              >
+                <Text style={styles.modalBtnTextConfirm}>Oui, vider</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -275,7 +326,8 @@ const styles = StyleSheet.create({
   /* HEADER PREMIUM */
   topHeader: {
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
 
@@ -287,6 +339,22 @@ const styles = StyleSheet.create({
   },
 
   headerBtnText: { color: KioskTheme.colors.text.light, fontWeight: "700", fontSize: 17 },
+
+  clearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: "#FFF5F5",
+    borderWidth: 1,
+    borderColor: "#FF512F",
+  },
+  clearBtnText: {
+    color: "#FF512F",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 
   titleRow: {
     flexDirection: "row",
@@ -438,4 +506,62 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   addButtonText: { color: KioskTheme.colors.text.light, fontWeight: "700", fontSize: 16 },
+
+  /* MODAL STYLES */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    width: '80%',
+    maxWidth: 400,
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    ...KioskTheme.shadows.card,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: KioskTheme.colors.text.primary,
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 18,
+    color: KioskTheme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  btnConfirm: {
+    backgroundColor: '#FF512F',
+  },
+  modalBtnTextCancel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: KioskTheme.colors.text.primary,
+  },
+  modalBtnTextConfirm: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
 });

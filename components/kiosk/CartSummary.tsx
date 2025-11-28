@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
     View,
     Text,
@@ -10,7 +10,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ShoppingCart } from "lucide-react-native";
-import { getCart } from "@/services/cartService";
+import { getCart, addCartListener } from "@/services/cartService";
 import { KioskTheme } from "@/constants/theme";
 import { Cart } from "@/types/kiosk";
 
@@ -27,6 +27,7 @@ export default function CartSummary() {
     const loadCart = async () => {
         const c = await getCart();
         setCart(c);
+        console.log("CartSummary: Cart loaded", c ? `Items: ${c.items.length}` : "No cart");
 
         // Animate based on cart content
         const hasItems = c && c.items && c.items.length > 0;
@@ -38,15 +39,24 @@ export default function CartSummary() {
         }).start();
     };
 
+    // Listen to cart changes
+    useEffect(() => {
+        const unsubscribe = addCartListener(() => {
+            loadCart();
+        });
+        return unsubscribe;
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
             loadCart();
         }, [])
     );
 
-    if (!cart || cart.items.length === 0) return null;
+    // if (!cart || cart.items.length === 0) return null; // REMOVED to prevent unmounting issues
 
-    const itemCount = cart.items.reduce((acc, item) => acc + item.quantity, 0);
+    const itemCount = cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
+    const total = cart?.total || 0;
 
     return (
         <Animated.View
@@ -55,6 +65,11 @@ export default function CartSummary() {
                 {
                     bottom: insets.bottom + 20,
                     transform: [{ translateY }],
+                    // Hide completely if off-screen to avoid touch events
+                    opacity: translateY.interpolate({
+                        inputRange: [0, 100],
+                        outputRange: [1, 0],
+                    }),
                 },
             ]}
         >
@@ -74,7 +89,7 @@ export default function CartSummary() {
 
                     <View style={styles.textContainer}>
                         <Text style={styles.totalLabel}>Total</Text>
-                        <Text style={styles.totalPrice}>{cart.total.toFixed(2)} €</Text>
+                        <Text style={styles.totalPrice}>{total.toFixed(2)} €</Text>
                     </View>
                 </View>
 
