@@ -20,7 +20,7 @@ import CartSummary from "@/components/kiosk/CartSummary";
 import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function CategoryScreen() {
-  const { id } = useLocalSearchParams();
+  const { categoryId } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -34,8 +34,9 @@ export default function CategoryScreen() {
   useEffect(() => {
     const load = async () => {
       try {
-        const c = await fetchCategoryById(Array.isArray(id) ? id[0] : id);
-        const p = await fetchProductsByCategory(Array.isArray(id) ? id[0] : id);
+        const id = Array.isArray(categoryId) ? categoryId[0] : categoryId;
+        const c = await fetchCategoryById(id);
+        const p = await fetchProductsByCategory(id);
 
         setCategory(c);
         setProducts(p);
@@ -50,7 +51,7 @@ export default function CategoryScreen() {
     };
 
     load();
-  }, [id]);
+  }, [categoryId]);
 
   if (loading) {
     return <LoadingAnimation />;

@@ -219,7 +219,7 @@ export default function KioskWelcome() {
                         <TouchableOpacity
                             style={[styles.logoContainer, isStandby && styles.logoCentered]}
                             onLongPress={handleResetCompany}
-                            delayLongPress={500} // Plus rapide que la seconde par défaut
+                            delayLongPress={10000} // 10 secondes pour éviter les accidents
                             activeOpacity={1}
                         >
                             <Text style={[styles.logoText, { fontSize: isStandby ? 80 : logoSize }]}>🍔 Thiop</Text>

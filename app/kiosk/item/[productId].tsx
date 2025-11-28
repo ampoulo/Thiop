@@ -26,7 +26,7 @@ import { Product, Attribute, AttributeValue } from "@/types/kiosk";
 import { LoadingAnimation } from "@/components/kiosk/LoadingAnimation";
 
 export default function KioskItem() {
-  const { id, edit, uniqueKey } = useLocalSearchParams();
+  const { productId, edit, uniqueKey } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -57,8 +57,8 @@ export default function KioskItem() {
   useEffect(() => {
     const load = async () => {
       try {
-        const productId = Array.isArray(id) ? id[0] : id;
-        const data = await fetchItemDetails(productId);
+        const id = Array.isArray(productId) ? productId[0] : productId;
+        const data = await fetchItemDetails(id);
         setItem(data);
 
         if (edit === "true" && uniqueKey) {
