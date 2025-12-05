@@ -1,18 +1,20 @@
-import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
+import { View } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import Toast from 'react-native-toast-message';
-import { BaseToast } from 'react-native-toast-message';
+
 export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="+not-found" />
       </Stack>
+
       <StatusBar style="auto" />
+
       <Toast
         position="top"
         topOffset={60}
@@ -63,7 +65,6 @@ export default function RootLayout() {
           ),
         }}
       />
-    </>
-    
+    </View>
   );
 }
